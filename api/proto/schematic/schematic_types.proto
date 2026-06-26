@@ -1,0 +1,105 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package kiapi.schematic.types;
+
+import "common/types/base_types.proto";
+
+enum SchematicLayer
+{
+  SL_UNKNOWN = 0;
+  SL_WIRE    = 1;
+  SL_BUS     = 2;
+  SL_NOTES   = 3;
+}
+
+/// Represents a schematic line segment, which may be a wire, bus, or graphical line
+message Line
+{
+  kiapi.common.types.KIID    id     = 1;
+  kiapi.common.types.Vector2 start  = 2;
+  kiapi.common.types.Vector2 end    = 3;
+
+  /**
+   * One of: LAYER_BUS, LAYER_WIRE, LAYER_NOTES
+   */
+  SchematicLayer layer = 4;
+}
+
+message Text
+{
+  kiapi.common.types.Text text = 1;
+}
+
+/// Axis-aligned bounding box in schematic mm (KiCad canvas coordinates).
+message LabelBBoxMm
+{
+  double left_mm   = 1;
+  double right_mm  = 2;
+  double top_mm    = 3;
+  double bottom_mm = 4;
+}
+
+message LocalLabel
+{
+  kiapi.common.types.KIID    id       = 1;
+  kiapi.common.types.Vector2 position = 2;
+  Text                       text     = 3;
+  optional LabelBBoxMm               bbox_mm                     = 4;
+  // Direction the label connection pin faces: 0=right, 90=up, 180=left, 270=down (matches add_global_label rotation).
+  optional double                    connection_rotation_degrees = 5;
+}
+
+message GlobalLabel
+{
+  kiapi.common.types.KIID    id       = 1;
+  kiapi.common.types.Vector2 position = 2;
+  Text                       text     = 3;
+  optional LabelBBoxMm               bbox_mm                     = 4;
+  optional double                    connection_rotation_degrees = 5;
+}
+
+message HierarchicalLabel
+{
+  kiapi.common.types.KIID    id       = 1;
+  kiapi.common.types.Vector2 position = 2;
+  Text                       text     = 3;
+  optional LabelBBoxMm               bbox_mm                     = 4;
+  optional double                    connection_rotation_degrees = 5;
+}
+
+message DirectiveLabel
+{
+  kiapi.common.types.KIID    id       = 1;
+  kiapi.common.types.Vector2 position = 2;
+  Text                       text     = 3;
+  optional LabelBBoxMm               bbox_mm                     = 4;
+  optional double                    connection_rotation_degrees = 5;
+}
+
+/// Plain graphic text (annotation) - not a net label, does not create electrical connections
+message SchematicText
+{
+  kiapi.common.types.KIID    id       = 1;
+  kiapi.common.types.Vector2 position = 2;
+  Text                       text     = 3;
+  SchematicLayer             layer    = 4;  // Usually SL_NOTES for annotations
+}
