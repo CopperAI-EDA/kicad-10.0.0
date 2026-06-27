@@ -2001,8 +2001,23 @@ API_HANDLER_SCH::handleReloadProjectSymbolLibraries(
 {
     ReloadProjectSymbolLibrariesResponse response;
 
-    SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_frame->Prj() );
-    adapter->GlobalTablesChanged( { LIBRARY_TABLE_TYPE::SYMBOL } );
+    // Reload the PROJECT symbol libraries from disk AND invalidate the per-project library
+    // adapter caches, so libraries imported mid-session (e.g. Copper_<id> written by
+    // import_lcsc_part) become resolvable to the placer. The original GlobalTablesChanged()
+    // only cleared the GLOBAL cache; reloading the table alone is not enough either, because
+    // place_component resolves through SymbolLibAdapter whose cache must also be cleared.
+    // ProjectChanged() does both: LoadProjectTables() + adapter->ProjectChanged() for every
+    // registered adapter.
+    Pgm().GetLibraryManager().ProjectChanged();
+
+    // Load project rows immediately so API placement can resolve newly added
+    // libraries without waiting for the async preload path used at project open.
+    if( SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_frame->Prj() ) )
+    {
+        for( LIBRARY_TABLE_ROW* row : adapter->Rows( LIBRARY_TABLE_SCOPE::PROJECT ) )
+            adapter->LoadOne( row->Nickname() );
+    }
+
     broadcastSymbolLibraryReload( m_frame );
     response.set_ok( true );
     return response;
