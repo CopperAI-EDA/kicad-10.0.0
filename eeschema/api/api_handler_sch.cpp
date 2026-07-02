@@ -2076,7 +2076,12 @@ API_HANDLER_SCH::handleAppendProjectSymbolLibraryRow(
         return response;
     }
 
-    adapter->GlobalTablesChanged( { LIBRARY_TABLE_TYPE::SYMBOL } );
+    // Refresh PROJECT-scoped caches only — see handleWriteSymbolLibraryFile:
+    // GlobalTablesChanged() wipes the GLOBAL cache and trips a latent SCH_PIN
+    // double-free on teardown. A ${KIPRJMOD} project library doesn't need it.
+    Pgm().GetLibraryManager().ProjectChanged();
+    for( LIBRARY_TABLE_ROW* libRow : adapter->Rows( LIBRARY_TABLE_SCOPE::PROJECT ) )
+        adapter->LoadOne( libRow->Nickname() );
     broadcastSymbolLibraryReload( m_frame );
 
     response.set_ok( true );
@@ -2216,7 +2221,16 @@ API_HANDLER_SCH::handleWriteSymbolLibraryFile(
             return response;
         }
 
-        adapter->GlobalTablesChanged( { LIBRARY_TABLE_TYPE::SYMBOL } );
+        // Refresh PROJECT-scoped caches only. Do NOT call GlobalTablesChanged()
+        // here: clearing the whole GLOBAL symbol cache forces teardown of every
+        // cached SEXPR IO plugin, which trips a latent SCH_PIN double-free (heap
+        // abort, seen on the shipped DMG) in some cached LIB_SYMBOLs. A
+        // ${KIPRJMOD}-relative project library never needs the global cache wiped.
+        // Mirror handleReloadProjectSymbolLibraries: ProjectChanged() + eager
+        // LoadOne() so the new library resolves immediately for API placement.
+        Pgm().GetLibraryManager().ProjectChanged();
+        for( LIBRARY_TABLE_ROW* libRow : adapter->Rows( LIBRARY_TABLE_SCOPE::PROJECT ) )
+            adapter->LoadOne( libRow->Nickname() );
         broadcastSymbolLibraryReload( m_frame );
     }
     else
@@ -2746,13 +2760,37 @@ HANDLER_RESULT<NavigateToSheetResponse> API_HANDLER_SCH::handleNavigateToSheet(
     if( !requestedKiid.IsEmpty() && !requestedKiid.EndsWith( wxS( "/" ) ) )
         requestedKiid << wxS( "/" );
 
+    // Also accept the ROOT-PREFIXED id-path form "/<rootUuid>/<uuid>/..." that the
+    // adapter's disk-parsed hierarchy inventory exposes (sheetIdPath includes the
+    // root sheet UUID; PathAsString() excludes it). Agents echo that form back and
+    // on the no-fs live deployment the adapter forwards it verbatim — rejecting it
+    // caused spurious "not found" failures (and destructive reload-retries)
+    // (production Langfuse traces, 2026-07-01). UUIDs compare case-insensitively.
+    wxString requestedRootStripped;
+    {
+        const wxString rootPrefix =
+                wxS( "/" ) + m_frame->Schematic().Root().m_Uuid.AsString() + wxS( "/" );
+        if( requestedKiid.Lower().StartsWith( rootPrefix.Lower() ) )
+        {
+            requestedRootStripped = wxS( "/" ) + requestedKiid.Mid( rootPrefix.length() );
+            // "/<rootUuid>/" alone addresses the root sheet.
+            if( requestedRootStripped == wxS( "/" ) )
+                requestedRootStripped = wxS( "/" );
+        }
+    }
+
     SCH_SHEET_LIST hierarchy = m_frame->Schematic().Hierarchy();
     std::vector<SCH_SHEET_PATH> matches;
 
     for( const SCH_SHEET_PATH& path : hierarchy )
     {
         wxString kiidPath = path.PathAsString();
-        if( humanPath( path ) == requested || kiidPath == requested || kiidPath == requestedKiid )
+        const bool kiidMatch = kiidPath.CmpNoCase( requested ) == 0
+                               || kiidPath.CmpNoCase( requestedKiid ) == 0
+                               || ( !requestedRootStripped.IsEmpty()
+                                    && ( kiidPath.CmpNoCase( requestedRootStripped ) == 0
+                                         || humanPath( path ) == requestedRootStripped ) );
+        if( humanPath( path ) == requested || kiidMatch )
             matches.push_back( path );
     }
 
