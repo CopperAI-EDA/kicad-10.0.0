@@ -1043,6 +1043,50 @@ bool buildUpdatedLabelAny( const ParsedLabel& label, const std::string& newName,
     out.PackFrom( liveLabel );
     return true;
 }
+
+// ── Sourcing note helpers ──
+// Core invariant: a component is "sourced" iff it carries an LCSC part number
+// matching C\d{4,7} (C followed by 4-7 digits) OR a non-empty JLCPCB / Digi-Key
+// order code.  This must be identical to sourcing_gate.py's _is_sourced rule.
+static const std::regex g_lcscSourcedRe( "\\bC[0-9]{4,7}\\b" );
+
+static std::string fieldText( const json& fields, const std::string& key )
+{
+    if( !fields.contains( key ) )
+        return "";
+    const auto& v = fields[key];
+    if( v.is_string() )
+        return v.get<std::string>();
+    if( v.is_number() )
+        return std::to_string( v.get<double>() );
+    return "";
+}
+
+static bool isFieldsSourced( const json& fields )
+{
+    // Check LCSC Part Number for a valid C\d{4,7} code
+    std::string lcsc = fieldText( fields, "LCSC Part Number" );
+    if( !lcsc.empty() && std::regex_search( lcsc, g_lcscSourcedRe ) )
+        return true;
+
+    // Non-empty JLCPCB Part Number counts as sourced
+    std::string jlc = fieldText( fields, "JLCPCB Part Number" );
+    if( !jlc.empty() )
+        return true;
+
+    // Non-empty Digi-Key Part Number counts as sourced
+    std::string dk = fieldText( fields, "Digi-Key Part Number" );
+    if( !dk.empty() )
+        return true;
+
+    return false;
+}
+
+static const char* SOURCING_NOTE_UNSOURCED =
+    "This component does not yet carry an LCSC C-number (C followed by 4-7 digits) "
+    "or a JLCPCB/Digi-Key order code. Call source_and_apply_components to assign "
+    "an order code so the board is orderable. This is a non-blocking reminder — "
+    "the footprint/field assignment above succeeded.";
 } // namespace
 
 McpHandler::McpHandler( IpcClient& aIpc ) : m_ipc( aIpc ) {}
@@ -9470,6 +9514,11 @@ std::string McpHandler::HandleToolsCall( const void* params, const std::string& 
         result["fields_set"] = fieldsArg;
         result["note"] = "Component fields stored. Use export_schematic_to_json then commit_schematic_from_json to persist to schematic.";
 
+        // Append a non-blocking sourcing_note when the fields lack an LCSC
+        // C\d{4,7} order code or a non-empty JLCPCB/Digi-Key code.
+        if( !isFieldsSourced( fieldsArg ) )
+            result["sourcing_note"] = SOURCING_NOTE_UNSOURCED;
+
         json content = json::array();
         content.push_back( { { "type", "text" }, { "text", result.dump() } } );
         return "{\"jsonrpc\":\"2.0\",\"result\":" + json( { { "content", content }, { "isError", false } } ).dump() + ",\"id\":" + id + "}";
@@ -9589,6 +9638,13 @@ std::string McpHandler::HandleToolsCall( const void* params, const std::string& 
         out["assigned_components"] = results;
         out["total_assigned"] = successCount;
         out["note"] = "Footprints staged for assignment. Use export_schematic_to_json then commit_schematic_from_json to persist changes.";
+
+        // Append a non-blocking sourcing_note. batch_assign_footprint only stages
+        // footprints — it does not write an LCSC/JLCPCB/Digi-Key order code, so
+        // the affected refs are still unsourced.  Steer the model to
+        // source_and_apply_components to close sourcing.
+        if( successCount > 0 )
+            out["sourcing_note"] = SOURCING_NOTE_UNSOURCED;
 
         json content = json::array();
         content.push_back( { { "type", "text" }, { "text", out.dump() } } );
