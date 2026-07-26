@@ -2556,6 +2556,16 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems(
                 response.mutable_items()->Add( std::move( itemBuf ) );
             }
         }
+        else if( type == SCH_NO_CONNECT_T )
+        {
+            handledAnything = true;
+            for( SCH_ITEM* item : screen->Items().OfType( SCH_NO_CONNECT_T ) )
+            {
+                google::protobuf::Any itemBuf;
+                item->Serialize( itemBuf );
+                response.mutable_items()->Add( std::move( itemBuf ) );
+            }
+        }
         else if( type == SCH_SYMBOL_T )
         {
             handledAnything = true;

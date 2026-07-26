@@ -44,6 +44,8 @@ public:
 
     ~SCH_NO_CONNECT() { }
 
+    void Serialize( google::protobuf::Any &aContainer ) const override;
+
     static inline bool ClassOf( const EDA_ITEM* aItem )
     {
         return aItem && SCH_NO_CONNECT_T == aItem->Type();

@@ -38,6 +38,8 @@
 #include <core/mirror.h>
 #include <trigo.h>
 #include <gr_basic.h>
+#include <api/api_utils.h>
+#include <api/schematic/schematic_types.pb.h>
 
 
 SCH_NO_CONNECT::SCH_NO_CONNECT( const VECTOR2I& pos ) :
@@ -53,6 +55,17 @@ SCH_NO_CONNECT::SCH_NO_CONNECT( const VECTOR2I& pos ) :
 EDA_ITEM* SCH_NO_CONNECT::Clone() const
 {
     return new SCH_NO_CONNECT( *this );
+}
+
+
+void SCH_NO_CONNECT::Serialize( google::protobuf::Any &aContainer ) const
+{
+    kiapi::schematic::types::NoConnect noConnect;
+
+    noConnect.mutable_id()->set_value( m_Uuid.AsStdString() );
+    kiapi::common::PackVector2( *noConnect.mutable_position(), GetPosition() );
+
+    aContainer.PackFrom( noConnect );
 }
 
 

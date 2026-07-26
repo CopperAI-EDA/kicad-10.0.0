@@ -24,6 +24,9 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 #include "eeschema_test_utils.h"
 
+#include <api/schematic/schematic_types.pb.h>
+#include <google/protobuf/any.pb.h>
+#include <sch_no_connect.h>
 #include <schematic.h>
 #include <wildcards_and_files_ext.h>
 
@@ -76,6 +79,22 @@ BOOST_AUTO_TEST_CASE( TestSchematicIsComplexHierarchy )
     LoadSchematic( SchematicQAPath( "netlists/complex_hierarchy/complex_hierarchy" ) );
 
     BOOST_CHECK( m_schematic->IsComplexHierarchy() );
+}
+
+
+BOOST_AUTO_TEST_CASE( TestNoConnectSerialization )
+{
+    const VECTOR2I position( 12'345'600, -7'890'100 );
+    SCH_NO_CONNECT noConnect( position );
+    google::protobuf::Any serialized;
+
+    noConnect.Serialize( serialized );
+
+    kiapi::schematic::types::NoConnect message;
+    BOOST_REQUIRE( serialized.UnpackTo( &message ) );
+    BOOST_CHECK_EQUAL( message.id().value(), noConnect.m_Uuid.AsStdString() );
+    BOOST_CHECK_EQUAL( message.position().x_nm(), position.x );
+    BOOST_CHECK_EQUAL( message.position().y_nm(), position.y );
 }
 
 

@@ -31,6 +31,12 @@ enum SchematicLayer
   SL_NOTES   = 3;
 }
 
+message NoConnect
+{
+  kiapi.common.types.KIID    id       = 1;
+  kiapi.common.types.Vector2 position = 2;
+}
+
 /// Represents a schematic line segment, which may be a wire, bus, or graphical line
 message Line
 {

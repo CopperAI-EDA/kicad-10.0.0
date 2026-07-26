@@ -201,6 +201,31 @@ aBitmapInfoCache[BITMAPS::copper_ai_agent].emplace_back(
 
 ---
 
+## CvPCB / Tool-Open Crash (`EDA_BASE_FRAME::commonInit + 508`)
+
+**Symptom:** Opening footprint assignment (CvPCB) or any kiface-hosted tool from eeschema crashes immediately. Crash log shows `EXC_BAD_ACCESS KERN_INVALID_ADDRESS 0x0000000000000000` in `EDA_BASE_FRAME::commonInit`. The binary images list shows **two copies** of `libkicommon.10.0.0.dylib` with different UUIDs.
+
+**Cause:** cmake installs the `kicad` binary with `LC_LOAD_DYLIB` entries containing absolute paths into the developer's build tree, e.g.:
+```
+/Users/dev/.../build-release/kicad/.../libkicommon.10.0.0.dylib
+```
+On the developer's machine these paths resolve, so dyld loads the *dev-tree* version of libkicommon when `kicad` starts. The `.kiface` plugins were built against the bundle's libkicommon (different UUID = different vtable layout). When a second kiface requests `@rpath/libkicommon` and dyld can't match it to the already-loaded library (different registered identity), it loads the bundle's copy — now two libkicommon instances with incompatible vtables coexist. The first virtual dispatch into `EDA_BASE_FRAME` through the wrong vtable crashes.
+
+This crash only occurs on the developer's machine (where the build tree exists). End-user machines have no build tree, so dyld falls back to the bundle-local library — no mismatch, no crash.
+
+**Fix (in `dmgbuild/run.sh`):**
+1. `install_name_tool -change` on the main `kicad` binary, all `.kiface` plugins, and all framework `.dylib` files to replace absolute build-tree paths with `@executable_path/../Frameworks/` / `@loader_path/../Frameworks/` / `@loader_path/` equivalents.
+2. `install_name_tool -delete_rpath` to remove absolute `LC_RPATH` entries pointing into the build tree.
+3. `install_name_tool -id "@rpath/<lib>.10.0.0.dylib"` on `libkicommon`, `libkigal`, `libkiapi`, `libkicad_3dsg` to fix their `LC_ID_DYLIB` so `@rpath/libXXX` references from plugins resolve against the already-loaded bundle copy.
+4. `install_name_tool -add_rpath "@executable_path/../Frameworks"` on the main `kicad` binary so all `@rpath/libXXX` references search the bundle Frameworks.
+
+`dmgbuild/run.sh` performs these fixups automatically (step 4 in the script) before signing and packaging. To repair an already-installed app:
+```bash
+bash vendor/kicad-mac-builder/dmgbuild/fix_rpaths.sh /Applications/CopperAI.app
+```
+
+---
+
 ## Runtime Chat URL
 
 Set via `LSEnvironment` in `Info.plist`:
