@@ -143,11 +143,6 @@ bool isNativeClass( HWND aHwnd, const wchar_t* aClassName )
 
     return wcscmp( className, aClassName ) == 0;
 }
-#if wxCHECK_VERSION( 3, 3, 0 )
-    wxSystemAppearance appearance = wxSystemSettings::GetAppearance();
-    return appearance.IsDark();
-#else
-    wxColour bg = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW );
 
 
 const wchar_t* nativeThemeForWindow( wxWindow* aWindow )
@@ -597,6 +592,11 @@ void KIPLATFORM::UI::SetFloatLevel( wxWindow* aWindow )
 
 
 void KIPLATFORM::UI::FixupWebViewKeyEquivalents( wxWindow* aWebView )
+{
+    WXUNUSED( aWebView );  // Not needed on this platform
+}
+
+
 void KIPLATFORM::UI::ReleaseChildWindow( wxNonOwnedWindow* aWindow )
 {
     // Not needed on this platform
@@ -610,6 +610,9 @@ bool KIPLATFORM::UI::RunWebViewScriptFireAndForget( wxWindow* aWebView, const wx
     WXUNUSED( aScript );
 
     return false;
+}
+
+
 void KIPLATFORM::UI::AllowNetworkFileSystems( wxDialog* aDialog )
 {
     // Not needed on Windows - file dialogs show network filesystems by default
