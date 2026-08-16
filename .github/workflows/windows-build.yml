@@ -26,13 +26,21 @@ on:
         default: false
 
 env:
-  VCPKG_ROOT: C:\vcpkg
-  VCPKG_BINARY_SOURCES: 'clear;files,C:\vcpkg-cache,readwrite'
+  # VCPKG_ROOT / VCPKG_BINARY_SOURCES / SWIG_DIR are deliberately NOT set here.
+  # They are machine-scope environment variables on the runner (see
+  # tools/ci/setup-build-box.md), so the runner already inherits them and the
+  # workflow does not have to encode one machine's disk layout. Setting them
+  # here would override the real values -- this box keeps vcpkg on E:, not C:.
+  #
   # 8-core runner: leave a core for the OS. Raising this past the core count
   # buys nothing and increases peak memory.
   VCPKG_MAX_CONCURRENCY: '8'
   BUILD_DIR: build/copperai-win64
   TRIPLET: x64-windows
+  # Ninja defaults to cores+2, which exhausts commit charge while eeschema's
+  # large translation units build with precompiled headers (C3859 / C1076).
+  # Budget 1-2 GB per concurrent cl.exe.
+  BUILD_JOBS: '8'
 
 jobs:
   build:
@@ -45,13 +53,34 @@ jobs:
         with:
           fetch-depth: 0     # CreateGitVersionHeader.cmake needs real history
 
-      - name: Report toolchain
+      # Resolve the MSVC install rather than hardcoding an edition path. This
+      # runner has Build Tools, not Community, and those live under different
+      # directories -- a hardcoded path fails on every box but the author's.
+      - name: Resolve toolchain
         shell: pwsh
         run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found -- is Visual Studio installed?" }
+          $vc = & $vswhere -latest -products * `
+                  -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+                  -property installationPath
+          if (-not $vc) { throw "no VS install with the C++ toolset (VCTools workload missing?)" }
+          $vcvars = "$vc\VC\Auxiliary\Build\vcvars64.bat"
+          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found at $vcvars" }
+          "VCVARS=$vcvars" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "vcvars : $vcvars"
+
+          if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT is not set on this runner" }
+          if (-not (Test-Path "$env:VCPKG_ROOT\vcpkg.exe")) { throw "no vcpkg.exe at $env:VCPKG_ROOT" }
+          "vcpkg  : $env:VCPKG_ROOT"
+          "cache  : $env:VCPKG_BINARY_SOURCES"
+          "swig   : $env:SWIG_DIR"
+
           cmake --version | Select-Object -First 1
-          ninja --version
-          python --version
-          "free disk: {0:N1} GB" -f ((Get-PSDrive C).Free/1GB)
+          "ninja  : $(ninja --version)"
+          # Report the drive the build actually lives on, not always C:.
+          $drive = (Resolve-Path .).Path.Substring(0,1)
+          "free on ${drive}: {0:N1} GB" -f ((Get-PSDrive $drive).Free/1GB)
 
       # Install dependencies as an explicit step rather than letting the CMake
       # configure trigger it, so the usr/local repair below can run in between.
@@ -93,17 +122,23 @@ jobs:
       - name: Configure
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          rem vcvars64 overwrites VCPKG_ROOT with the VS-bundled copy; re-assert ours.
-          set VCPKG_ROOT=C:\vcpkg
-          cmake --preset copperai-win64 -DVCPKG_MANIFEST_INSTALL=OFF
+          rem vcvars64 clobbers VCPKG_ROOT with the VS-bundled copy, so stash
+          rem the real one and restore it afterwards.
+          set "REAL_VCPKG_ROOT=%VCPKG_ROOT%"
+          call "%VCVARS%"
+          set "VCPKG_ROOT=%REAL_VCPKG_ROOT%"
+          cmake --preset copperai-win64 ^
+            -DVCPKG_MANIFEST_INSTALL=OFF ^
+            -DSWIG_EXECUTABLE="%SWIG_EXECUTABLE%" ^
+            -DSWIG_DIR="%SWIG_DIR%"
 
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          set VCPKG_ROOT=C:\vcpkg
-          cmake --build --preset copperai-win64
+          set "REAL_VCPKG_ROOT=%VCPKG_ROOT%"
+          call "%VCVARS%"
+          set "VCPKG_ROOT=%REAL_VCPKG_ROOT%"
+          cmake --build --preset copperai-win64 -- -j %BUILD_JOBS%
 
       - name: Verify the CopperAI webview panel linked in
         shell: pwsh
@@ -138,7 +173,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          call "%VCVARS%"
           cmake --install %BUILD_DIR% --prefix build\stage
 
       - name: Build MSI
