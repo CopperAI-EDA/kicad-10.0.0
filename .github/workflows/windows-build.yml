@@ -108,15 +108,29 @@ jobs:
       - name: Verify the CopperAI webview panel linked in
         shell: pwsh
         run: |
-          $kiface = Get-ChildItem "$env:BUILD_DIR" -Recurse -Filter '_eeschema.kiface' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $kiface) { throw "_eeschema.kiface not produced" }
-          "found: $($kiface.FullName)"
-          # The AI panel is the point of this fork; a build that silently drops
-          # the IPC bridge still links and still starts, so check explicitly.
-          if (-not (Select-String -Path $kiface.FullName -Pattern 'window.kicad' -Encoding Byte -Quiet)) {
-            throw "kiface does not contain the window.kicad IPC bridge"
+          # On Windows the eeschema kiface is _eeschema.dll -- there are no
+          # .kiface files in this build; that naming is macOS/Linux only.
+          $mod = Get-ChildItem "$env:BUILD_DIR" -Recurse -Filter '_eeschema.dll' -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+          if (-not $mod) { throw "_eeschema.dll not produced" }
+          "module: $($mod.FullName)  ($('{0:N1}' -f ($mod.Length/1MB)) MB)"
+
+          # The AI panel is the point of this fork, and a build that silently
+          # drops the IPC bridge still links and still launches -- so assert the
+          # bridge is really in the binary.
+          #
+          # These are wxS() literals, so on Windows they are stored UTF-16LE.
+          # An ASCII scan finds nothing and looks like a failure.
+          $bytes = [IO.File]::ReadAllBytes($mod.FullName)
+          $utf16 = [Text.Encoding]::Unicode.GetString($bytes)
+          $missing = @()
+          foreach ($needle in @('window.kicad', 'wx_msg', 'kicad.ipc', 'chrome.webview')) {
+              $n = ([regex]::Matches($utf16, [regex]::Escape($needle))).Count
+              "  {0,-16} {1}" -f $needle, $n
+              if ($n -eq 0) { $missing += $needle }
           }
-          "IPC bridge present"
+          if ($missing) { throw "IPC bridge incomplete, missing: $($missing -join ', ')" }
+          "IPC bridge present (including the WebView2 chrome.webview path)"
 
       # ---- packaging (tags, or manual dispatch with package_msi) ----
 
