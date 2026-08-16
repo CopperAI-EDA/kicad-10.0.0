@@ -33,7 +33,15 @@
 #include <pgm_base.h>
 #endif
 #include <widgets/ui_common.h>
-#include <nlohmann/json.hpp>
+// Use json_common.h, not <nlohmann/json.hpp> directly. json_common.h declares
+// JSON_COMMON_EXPORT_STUB (KICOMMON_API, deriving from nlohmann::json) so the
+// basic_json template is instantiated and exported from kicommon.dll exactly
+// once. Including the upstream header directly instantiates a second local copy,
+// which collides on Windows with kicommon's exported one:
+//   kicommon.lib(kicommon.dll) : error LNK2005: ... basic_json ...
+//   already defined in common.lib(webview_panel.cpp.obj)
+// Every other json consumer in this tree (settings/, jobs/) includes it this way.
+#include <json_common.h>
 #include <wx/base64.h>
 #include <wx/sizer.h>
 #include <wx/log.h>

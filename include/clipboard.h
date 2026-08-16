@@ -59,7 +59,12 @@ struct CLIPBOARD_MIME_DATA
  *              stored as Unicode string (not stored as UTF8 string).
  * @return False if error occurred.
  */
-KICOMMON_API bool SaveClipboard( const std::string& aTextUTF8 );
+// Not KICOMMON_API: clipboard.cpp is compiled into the static `common` library,
+// so a dllimport declaration makes callers look for __imp_ symbols that only
+// exist in kicommon's import library. The other six functions here are already
+// undecorated for the same reason; these two were the outliers, and they only
+// became fatal once webview_panel.cpp started calling them.
+bool SaveClipboard( const std::string& aTextUTF8 );
 
 /**
  * Store information to the system clipboard with additional MIME types.
@@ -91,7 +96,7 @@ bool GetTabularDataFromClipboard( std::vector<std::vector<wxString>>& aData );
  * @note The clipboard is expected containing Unicode chars, not only ASCII7 chars.
  *       The returned string is UTF8 encoded
  */
-KICOMMON_API std::string GetClipboardUTF8();
+std::string GetClipboardUTF8();
 
 /**
  * Get image data from the clipboard, if there is any.

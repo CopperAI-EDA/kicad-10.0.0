@@ -42,7 +42,16 @@ class wxTimerEvent;
  * This class provides a safe wrapper around wxWebView with proper event handling
  * and JavaScript <-> C++ communication bridge via message handlers.
  */
-class KICOMMON_API WEBVIEW_PANEL : public wxPanel
+// Deliberately not KICOMMON_API. webview_panel.cpp is compiled into the static
+// `common` library, not into kicommon, so marking the class dllexport/dllimport
+// makes every consumer (eeschema, kicad, gerbview, ...) emit __imp_ references
+// that only exist in kicommon's import library -- LNK2019 on the vftable.
+// Consumers all link `common` statically, so plain visibility is correct and is
+// what the 9.0.7 tree that shipped a working Windows MSI did.
+// It also avoids dllexporting the nlohmann::json template instantiations that
+// this class's inline members pull in, which collided (LNK2005) against the
+// header-only copies in other targets.
+class WEBVIEW_PANEL : public wxPanel
 {
 public:
     /**
