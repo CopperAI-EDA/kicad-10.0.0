@@ -1,0 +1,163 @@
+name: Windows build
+
+# Full CopperAI (KiCad 10) Windows build on the self-hosted runner.
+#
+# Why self-hosted: a GitHub-hosted windows runner gives 4 vCPU / 16 GB RAM /
+# ~14 GB disk with a 6 hour job cap. This build needs roughly 20 GB (source tree
+# ~2 GB, vcpkg_installed ~3 GB, RelWithDebInfo build tree ~12-15 GB) and a cold
+# dependency build takes hours even on 24 cores. It does not fit.
+#
+# The runner must have: VS 2022 Build Tools, CMake >= 3.28, Ninja, Python, Git,
+# a vcpkg checkout, and ~100 GB free.
+#
+# VCPKG_BINARY_SOURCES is what makes this sustainable -- without a persistent
+# binary cache every run rebuilds all 133 dependencies from source.
+
+on:
+  pull_request:
+  push:
+    branches: [main, copperai-release]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      package_msi:
+        description: 'Build the MSI installer'
+        type: boolean
+        default: false
+
+env:
+  VCPKG_ROOT: C:\vcpkg
+  VCPKG_BINARY_SOURCES: 'clear;files,C:\vcpkg-cache,readwrite'
+  # 8-core runner: leave a core for the OS. Raising this past the core count
+  # buys nothing and increases peak memory.
+  VCPKG_MAX_CONCURRENCY: '8'
+  BUILD_DIR: build/copperai-win64
+  TRIPLET: x64-windows
+
+jobs:
+  build:
+    name: Build CopperAI (x64)
+    runs-on: [self-hosted, windows, x64]
+    timeout-minutes: 600
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # CreateGitVersionHeader.cmake needs real history
+
+      - name: Report toolchain
+        shell: pwsh
+        run: |
+          cmake --version | Select-Object -First 1
+          ninja --version
+          python --version
+          "free disk: {0:N1} GB" -f ((Get-PSDrive C).Free/1GB)
+
+      # Install dependencies as an explicit step rather than letting the CMake
+      # configure trigger it, so the usr/local repair below can run in between.
+      - name: vcpkg install dependencies
+        id: deps
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install `
+            --x-manifest-root=. `
+            --x-install-root="$env:BUILD_DIR/vcpkg_installed" `
+            --overlay-triplets=tools/custom_vcpkg_triplets `
+            --triplet $env:TRIPLET
+
+      # Some autotools ports install under a bogus /usr/local prefix; vcpkg then
+      # believes they are installed while consumers cannot find them. This
+      # recurs on any ABI change, so it is a normal pipeline step, not a hack.
+      # See tools/ci/fix_vcpkg_usrlocal_prefix.py for the full explanation.
+      - name: Repair vcpkg usr/local prefix
+        shell: pwsh
+        run: python tools/ci/fix_vcpkg_usrlocal_prefix.py "$env:BUILD_DIR/vcpkg_installed"
+
+      # gettext races under parallel make: gettext-tools links libintl.la from
+      # gettext-runtime before that directory is built. Retrying serially is the
+      # known workaround, and it only costs time when the fast path already failed.
+      - name: Retry dependencies (serial) if the first pass failed
+        if: steps.deps.outcome == 'failure'
+        shell: pwsh
+        env:
+          VCPKG_MAX_CONCURRENCY: '1'
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install `
+            --x-manifest-root=. `
+            --x-install-root="$env:BUILD_DIR/vcpkg_installed" `
+            --overlay-triplets=tools/custom_vcpkg_triplets `
+            --triplet $env:TRIPLET
+          python tools/ci/fix_vcpkg_usrlocal_prefix.py "$env:BUILD_DIR/vcpkg_installed"
+
+      - name: Configure
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          rem vcvars64 overwrites VCPKG_ROOT with the VS-bundled copy; re-assert ours.
+          set VCPKG_ROOT=C:\vcpkg
+          cmake --preset copperai-win64 -DVCPKG_MANIFEST_INSTALL=OFF
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          set VCPKG_ROOT=C:\vcpkg
+          cmake --build --preset copperai-win64
+
+      - name: Verify the CopperAI webview panel linked in
+        shell: pwsh
+        run: |
+          $kiface = Get-ChildItem "$env:BUILD_DIR" -Recurse -Filter '_eeschema.kiface' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $kiface) { throw "_eeschema.kiface not produced" }
+          "found: $($kiface.FullName)"
+          # The AI panel is the point of this fork; a build that silently drops
+          # the IPC bridge still links and still starts, so check explicitly.
+          if (-not (Select-String -Path $kiface.FullName -Pattern 'window.kicad' -Encoding Byte -Quiet)) {
+            throw "kiface does not contain the window.kicad IPC bridge"
+          }
+          "IPC bridge present"
+
+      # ---- packaging (tags, or manual dispatch with package_msi) ----
+
+      - name: Install to staging tree
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          cmake --install %BUILD_DIR% --prefix build\stage
+
+      - name: Build MSI
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
+        shell: pwsh
+        env:
+          COPPERAI_INSTALL_ROOT: build\stage
+          COPPERAI_WIX_OUT: build\msi\CopperAI.wxs
+        run: |
+          $version = if ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF -replace '.*/v','' } else { '0.0.0' }
+          $env:COPPERAI_MSI_VERSION = $version
+          New-Item -ItemType Directory -Force build\msi | Out-Null
+          python packaging\windows\gen_copperai_wix.py
+          # gen_copperai_wix.py emits the WiX v4 schema, so this needs the v4/v5
+          # toolset (dotnet tool install --global wix), not legacy candle/light.
+          wix build build\msi\CopperAI.wxs -o "build\msi\CopperAI-$version-win64.msi"
+
+      - name: Upload MSI
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
+        uses: actions/upload-artifact@v4
+        with:
+          name: CopperAI-win64-msi
+          path: build/msi/*.msi
+          if-no-files-found: error
+
+      - name: Collect logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ${{ env.BUILD_DIR }}/vcpkg-manifest-install.log
+            ${{ env.BUILD_DIR }}/CMakeFiles/CMakeConfigureLog.yaml
+            C:/vcpkg/buildtrees/*/*-err.log
+            C:/vcpkg/buildtrees/*/*-out.log
+          if-no-files-found: ignore

@@ -1,0 +1,70 @@
+name: PR checks
+
+# Fast, free checks on GitHub-hosted runners. These deliberately do NOT compile
+# anything: a real configure pulls in the whole vcpkg dependency set, which does
+# not fit in a hosted runner's ~14 GB of disk and would not finish inside the
+# 6 hour job limit. The heavy build runs on the self-hosted runner instead
+# (see windows-build.yml).
+#
+# What these catch is the class of defect that is cheap to detect and expensive
+# to discover late -- specifically the three real bugs that shipped on
+# copperai-release and were only found when someone finally built for Windows.
+
+on:
+  pull_request:
+  push:
+    branches: [main, copperai-release]
+  workflow_dispatch:
+
+jobs:
+  static-checks:
+    name: Source structure and resources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Brace balance, #if/#endif balance, and functions whose body a patch ate.
+      # All three were live in libs/kiplatform/port/wxmsw/ui.cpp.
+      - name: C/C++ structural check
+        run: python tools/ci/check_source_structure.py
+
+      # .rc files reference icons by relative path and are only compiled during a
+      # Windows build; kicad.rc referenced an icon that was not in the repo.
+      - name: Windows resource references
+        run: python tools/ci/check_resource_refs.py
+
+      - name: Packaging scripts compile
+        run: |
+          python -m compileall -q packaging/windows tools/ci
+          python -m py_compile packaging/windows/gen_copperai_wix.py
+
+  msi-generator:
+    name: MSI generator smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # gen_copperai_wix.py walks an install tree and emits WiX XML. Point it at
+      # a synthetic tree so a syntax error or a broken path assumption surfaces
+      # here rather than after a multi-hour build has already succeeded.
+      - name: Generate .wxs from a synthetic install tree
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/bin" "$root/share/kicad"
+          printf 'stub' > "$root/bin/kicad.exe"
+          printf 'stub' > "$root/share/kicad/example.dat"
+          out="$(mktemp -d)/CopperAI.wxs"
+          COPPERAI_INSTALL_ROOT="$root" \
+          COPPERAI_WIX_OUT="$out" \
+          COPPERAI_MSI_VERSION="0.0.0" \
+            python packaging/windows/gen_copperai_wix.py
+          python -c "import xml.dom.minidom,sys; xml.dom.minidom.parse('$out'); print('wxs is well-formed XML')"

@@ -454,6 +454,11 @@ void KIPLATFORM::UI::SetFloatLevel( wxWindow* aWindow )
 
 
 void KIPLATFORM::UI::FixupWebViewKeyEquivalents( wxWindow* aWebView )
+{
+    WXUNUSED( aWebView );  // Not needed on this platform
+}
+
+
 void KIPLATFORM::UI::ReleaseChildWindow( wxNonOwnedWindow* aWindow )
 {
     // Not needed on this platform
