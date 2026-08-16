@@ -82,6 +82,15 @@ jobs:
           $drive = (Resolve-Path .).Path.Substring(0,1)
           "free on ${drive}: {0:N1} GB" -f ((Get-PSDrive $drive).Free/1GB)
 
+      # Upstream projects relocate their release archives, and when they do the
+      # port's recorded URL 404s and every clean build fails until someone
+      # diagnoses it. ngspice 45.2 moved to a SourceForge `old-releases` path and
+      # broke both machines this has been built on. Staging the file (SHA512
+      # verified against the portfile) makes vcpkg skip the dead URL.
+      - name: Pre-stage relocated source archives
+        shell: pwsh
+        run: python tools/ci/prefetch_distfiles.py "$env:VCPKG_ROOT\downloads"
+
       # Install dependencies as an explicit step rather than letting the CMake
       # configure trigger it, so the usr/local repair below can run in between.
       - name: vcpkg install dependencies
