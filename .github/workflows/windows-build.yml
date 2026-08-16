@@ -119,6 +119,10 @@ jobs:
             --triplet $env:TRIPLET
           python tools/ci/fix_vcpkg_usrlocal_prefix.py "$env:BUILD_DIR/vcpkg_installed"
 
+      # Explicit flags rather than --preset: CMakePresets.json is gitignored in
+      # this repo (.gitignore:122), so it is a per-developer file and never
+      # exists in a clean checkout. A preset-based CI step cannot work here.
+      # These flags are the copperai-win64 preset spelled out.
       - name: Configure
         shell: cmd
         run: |
@@ -127,8 +131,16 @@ jobs:
           set "REAL_VCPKG_ROOT=%VCPKG_ROOT%"
           call "%VCVARS%"
           set "VCPKG_ROOT=%REAL_VCPKG_ROOT%"
-          cmake --preset copperai-win64 ^
+          cmake -S . -B %BUILD_DIR% -G Ninja ^
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
+            -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET=%TRIPLET% ^
+            -DVCPKG_OVERLAY_TRIPLETS=tools/custom_vcpkg_triplets ^
             -DVCPKG_MANIFEST_INSTALL=OFF ^
+            -DKICAD_BUILD_QA_TESTS=OFF ^
+            -DKICAD_SCRIPTING_WXPYTHON=ON ^
+            -DKICAD_WIN32_DPI_AWARE=ON ^
+            -DKICAD_IPC_API=ON ^
             -DSWIG_EXECUTABLE="%SWIG_EXECUTABLE%" ^
             -DSWIG_DIR="%SWIG_DIR%"
 
@@ -138,7 +150,7 @@ jobs:
           set "REAL_VCPKG_ROOT=%VCPKG_ROOT%"
           call "%VCVARS%"
           set "VCPKG_ROOT=%REAL_VCPKG_ROOT%"
-          cmake --build --preset copperai-win64 -- -j %BUILD_JOBS%
+          cmake --build %BUILD_DIR% -- -j %BUILD_JOBS%
 
       - name: Verify the CopperAI webview panel linked in
         shell: pwsh
