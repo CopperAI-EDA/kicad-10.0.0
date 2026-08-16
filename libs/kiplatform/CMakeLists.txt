@@ -71,6 +71,9 @@ elseif( WIN32 )
         "wintrust"
         "imm32"
         "windowsapp"
+        # KIPLATFORM::UI::ApplyDarkFrameTheme calls DwmSetWindowAttribute to
+        # darken the native window frame; that lives in dwmapi.
+        "dwmapi"
         )
 elseif( UNIX )
     list( APPEND PLATFORM_SRCS

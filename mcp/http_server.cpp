@@ -20,10 +20,18 @@
 #include <vector>
 
 #ifdef _WIN32
+#include <basetsd.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment( lib, "ws2_32.lib" )
-using ssize_t = int;
+// The MSVC CRT already provides ssize_t (as __int64 on x64) once corecrt.h has
+// been pulled in, so an unconditional `using ssize_t = int;` is both a
+// redefinition (C2371) and the wrong width for a 64-bit target. Only define it
+// when the CRT has not, and use the pointer-sized SSIZE_T when we do.
+#ifndef _SSIZE_T_DEFINED
+#define _SSIZE_T_DEFINED
+using ssize_t = SSIZE_T;
+#endif
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
