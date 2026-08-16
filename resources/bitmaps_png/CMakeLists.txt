@@ -1002,6 +1002,19 @@ endfunction()
 
 include( FindUnixCommands )
 
+if( MSVC AND EXISTS "C:/Windows/System32/tar.exe" )
+    # FindUnixCommands picks up Git for Windows' GNU tar whenever Git is on PATH,
+    # which is nearly every developer machine. GNU tar parses the "C:" of a native
+    # absolute output path as a remote host spec and dies with
+    #     tar (child): Cannot connect to C: resolve failed
+    # The MINGW branch below avoids that by rewriting C:/ to /C/, but it does not
+    # apply to MSVC builds, so the archive step fails there.
+    #
+    # Windows ships bsdtar in System32, which handles native paths correctly.
+    # Prefer it for MSVC regardless of what FindUnixCommands turned up.
+    set( TAR "C:/Windows/System32/tar.exe" )
+endif()
+
 if( TAR STREQUAL "TAR-NOTFOUND" )
     # CMake on Windows CI seems to struggle to find tar even though it's in PATH
     # Let's help it out as modern windows (Server 2019 and 10 provide tar)
