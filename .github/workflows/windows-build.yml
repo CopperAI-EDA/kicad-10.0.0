@@ -140,8 +140,16 @@ jobs:
           set "REAL_VCPKG_ROOT=%VCPKG_ROOT%"
           call "%VCVARS%"
           set "VCPKG_ROOT=%REAL_VCPKG_ROOT%"
+          rem CMAKE_INSTALL_PREFIX must be set at CONFIGURE time. KiCad bakes
+          rem KICAD_DATA from it as an absolute CACHE STRING, so a later
+          rem `cmake --install --prefix X` silently splits the tree: relative
+          rem destinations go to X while everything under ${KICAD_DATA} -- 734
+          rem files including images.tar.gz and _pcbnew.pyd -- goes to the
+          rem configured prefix. The resulting MSI installs an app that pops
+          rem "can't open file ...\share\kicad\resources\images.tar.gz".
           cmake -S . -B %BUILD_DIR% -G Ninja ^
             -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
+            -DCMAKE_INSTALL_PREFIX=%CD%\build\stage ^
             -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
             -DVCPKG_TARGET_TRIPLET=%TRIPLET% ^
             -DVCPKG_OVERLAY_TRIPLETS=tools/custom_vcpkg_triplets ^
@@ -195,7 +203,9 @@ jobs:
         shell: cmd
         run: |
           call "%VCVARS%"
-          cmake --install %BUILD_DIR% --prefix build\stage
+          rem No --prefix: it must match CMAKE_INSTALL_PREFIX from configure, or
+          rem the ${KICAD_DATA} destinations split off into a second tree.
+          cmake --install %BUILD_DIR%
 
       # cmake --install alone produces a tree that cannot start: it omits the
       # vcpkg runtime DLLs (present in the build tree only because of vcpkg's
@@ -242,7 +252,10 @@ jobs:
 
           New-Item -ItemType Directory -Force build\msi | Out-Null
           python packaging\windows\gen_copperai_wix.py
-          wix build build\msi\CopperAI.wxs -o "build\msi\CopperAI-$version-win64.msi"
+          # -arch x64 is required. Without it wix produces a 32-bit package, and
+          # a 32-bit package resolves ProgramFiles64Folder to the *x86* Program
+          # Files -- so a 64-bit app lands in "C:\Program Files (x86)\CopperAI".
+          wix build -arch x64 build\msi\CopperAI.wxs -o "build\msi\CopperAI-$version-win64.msi"
 
       # `wix build` exiting 0 is not proof of a usable installer. Open the MSI as
       # an installer database and read its properties back -- that catches a
@@ -282,7 +295,12 @@ jobs:
           }
           "  files          : $($names.Count)"
           $missing = @()
-          foreach ($want in @('kicad.exe','eeschema.exe','pcbnew.exe','_eeschema.dll','_pcbnew.dll','kicommon.dll')) {
+          # images.tar.gz holds every icon in the UI. Without it the app still
+          # launches, but every toolbar and menu icon renders as a "?" -- and it
+          # was silently absent from the first packages because of the
+          # KICAD_DATA prefix split. Assert it explicitly.
+          foreach ($want in @('kicad.exe','eeschema.exe','pcbnew.exe','_eeschema.dll','_pcbnew.dll',
+                              'kicommon.dll','images.tar.gz','api.v1.schema.json')) {
               if (-not ($names | Where-Object { $_ -match [regex]::Escape($want) })) { $missing += $want }
           }
           if ($missing) { throw "MSI is missing: $($missing -join ', ')" }
