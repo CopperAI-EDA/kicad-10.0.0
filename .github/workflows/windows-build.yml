@@ -37,6 +37,9 @@ env:
   VCPKG_MAX_CONCURRENCY: '8'
   BUILD_DIR: build/copperai-win64
   TRIPLET: x64-windows
+  # Symbol/footprint library tag. Should track the application version -- the
+  # libraries are versioned alongside KiCad releases.
+  KICAD_LIB_VERSION: '10.0.5'
   # Ninja defaults to cores+2, which exhausts commit charge while eeschema's
   # large translation units build with precompiled headers (C3859 / C1076).
   # Budget 1-2 GB per concurrent cl.exe.
@@ -220,6 +223,15 @@ jobs:
         run: |
           ./tools/ci/stage_install_tree.ps1 -StageDir build/stage -BuildDir $env:BUILD_DIR
 
+      # KiCad's symbol/footprint libraries live in separate repositories, so a
+      # build of this tree alone ships an editor with no parts: eeschema opens
+      # but the symbol chooser is empty and the first-run wizard reports missing
+      # library tables. The official installers bundle them; so must we.
+      - name: Fetch KiCad libraries
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
+        shell: pwsh
+        run: python tools/ci/fetch_kicad_libraries.py build\stage --version ${{ env.KICAD_LIB_VERSION }}
+
       - name: Build MSI
         if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
         shell: pwsh
@@ -300,7 +312,11 @@ jobs:
           # was silently absent from the first packages because of the
           # KICAD_DATA prefix split. Assert it explicitly.
           foreach ($want in @('kicad.exe','eeschema.exe','pcbnew.exe','_eeschema.dll','_pcbnew.dll',
-                              'kicommon.dll','images.tar.gz','api.v1.schema.json')) {
+                              'kicommon.dll','images.tar.gz','api.v1.schema.json',
+                              # Without these the editor opens with an empty
+                              # symbol chooser -- it looks installed but is not
+                              # usable, which no launch test would catch.
+                              'sym-lib-table','fp-lib-table')) {
               if (-not ($names | Where-Object { $_ -match [regex]::Escape($want) })) { $missing += $want }
           }
           if ($missing) { throw "MSI is missing: $($missing -join ', ')" }
