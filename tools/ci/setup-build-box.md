@@ -18,6 +18,7 @@ box; the workflow adapts.
 | SWIG | must be the **swigwin** distribution, for its `Lib/` directory |
 | Python, Git | any recent |
 | vcpkg | must be recent — see below |
+| WiX | **5.x** (`dotnet tool install --global wix --version 5.0.2`) — not v7 |
 | Disk | ~100 GB. Source ~2 GB, vcpkg_installed ~3 GB, build tree ~12–15 GB, plus cache |
 | RAM | budget 1–2 GB per concurrent `cl.exe` |
 
@@ -74,6 +75,25 @@ Set at **machine** scope so the runner *service* inherits them:
 - **Upstream tarballs move.** ngspice 45.2 was relocated to an `old-releases`
   path. Fetch from the new location, verify SHA512 against the portfile, and
   drop it in `<vcpkg>\downloads\<expected-filename>`. Always verify the hash.
+  `tools/ci/prefetch_distfiles.py` handles the known cases; adding the next one
+  is a two-line change.
+
+- **WiX v7 will not build anything without a EULA.** `dotnet tool install
+  --global wix` with no version now resolves to v7, which fails with
+  `error WIX7015: You must accept the Open Source Maintenance Fee (OSMF) EULA`.
+  Pin 5.0.2 — the last release before that gate, and it handles the v4 schema
+  `gen_copperai_wix.py` emits. Accepting the OSMF EULA is a licensing decision
+  for the project owner, not something CI should do implicitly.
+
+- **The runner must not sleep.** `copper-pdf` slept mid-session and dropped off
+  the network; a sleeping box fails every job dispatched to it. Disable sleep and
+  hibernate on any machine serving as a runner:
+
+  ```powershell
+  powercfg /change standby-timeout-ac 0
+  powercfg /change hibernate-timeout-ac 0
+  powercfg /change monitor-timeout-ac 15
+  ```
 
 ## Binary cache
 
@@ -112,3 +132,27 @@ Install it as a service so builds survive logout and reboot.
 Before trusting a new box, compile something rather than checking that
 `cl.exe` exists — a partial toolset install can satisfy the latter. Configure a
 trivial CMake + Ninja C++ project, build it, and run the result.
+
+Likewise for the MSI: `wix build` exiting 0 does not mean the package is usable.
+Open it as an installer database and read its properties back, which is what the
+"Verify the MSI" workflow step does.
+
+```powershell
+$installer = New-Object -ComObject WindowsInstaller.Installer
+$db = $installer.GetType().InvokeMember("OpenDatabase","InvokeMethod",$null,$installer,@($msiPath,0))
+# then query: SELECT Value FROM Property WHERE Property='ProductName'
+```
+
+## Reference: first successful build
+
+2026-08-16, `copper-pdf` (i7-9800X, 8c/16t, 48 GB, E: 355 GB free):
+
+| | |
+|---|---|
+| Dependencies | 133 packages, ~1.0 GB cached |
+| Compile | 2352 targets at `-j 8` |
+| Output | `kicad.exe` 5.4 MB, `_pcbnew.dll` 26.2 MB, `_eeschema.dll` 17.5 MB |
+| MSI | 60.5 MB, 4681 files |
+
+No `usr/local` repair and no serial gettext retry were needed — both traps are
+avoided outright by a current vcpkg and by concurrency 8.

@@ -203,14 +203,77 @@ jobs:
         env:
           COPPERAI_INSTALL_ROOT: build\stage
           COPPERAI_WIX_OUT: build\msi\CopperAI.wxs
+          # Pin WiX 5. `dotnet tool install --global wix` with no version now
+          # resolves to v7, which refuses to build anything until the Open Source
+          # Maintenance Fee EULA is accepted:
+          #   error WIX7015: You must accept the Open Source Maintenance Fee
+          #   (OSMF) EULA to use WiX Toolset v7
+          # 5.0.2 is the last release before that gate and handles the v4 schema
+          # gen_copperai_wix.py emits. Accepting the OSMF EULA is a licensing
+          # decision, not something CI should do implicitly.
+          WIX_VERSION: '5.0.2'
         run: |
           $version = if ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF -replace '.*/v','' } else { '0.0.0' }
           $env:COPPERAI_MSI_VERSION = $version
+
+          # Install the pinned WiX if it is absent or the wrong major version.
+          $have = (& wix --version 2>$null) -join ''
+          if ($LASTEXITCODE -ne 0 -or -not $have.StartsWith('5.')) {
+              "installing WiX $env:WIX_VERSION (found: $(if ($have) { $have } else { 'none' }))"
+              & dotnet tool uninstall --global wix 2>&1 | Out-Null
+              & dotnet tool install --global wix --version $env:WIX_VERSION
+              if ($LASTEXITCODE -ne 0) { throw "WiX install failed" }
+              $env:PATH = "$env:PATH;$env:USERPROFILE\.dotnet\tools"
+          }
+          "wix: $((& wix --version) -join '')"
+
           New-Item -ItemType Directory -Force build\msi | Out-Null
           python packaging\windows\gen_copperai_wix.py
-          # gen_copperai_wix.py emits the WiX v4 schema, so this needs the v4/v5
-          # toolset (dotnet tool install --global wix), not legacy candle/light.
           wix build build\msi\CopperAI.wxs -o "build\msi\CopperAI-$version-win64.msi"
+
+      # `wix build` exiting 0 is not proof of a usable installer. Open the MSI as
+      # an installer database and read its properties back -- that catches a
+      # truncated or structurally broken package before it reaches anyone.
+      - name: Verify the MSI
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem build\msi\*.msi | Select-Object -First 1
+          if (-not $msi) { throw "no MSI produced" }
+          "file: $($msi.Name)  ($('{0:N1}' -f ($msi.Length/1MB)) MB)"
+
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          $db = $installer.GetType().InvokeMember("OpenDatabase","InvokeMethod",$null,$installer,@($msi.FullName,0))
+
+          function Get-MsiProperty($db, $name) {
+              $v = $db.GetType().InvokeMember("OpenView","InvokeMethod",$null,$db,
+                     @("SELECT Value FROM Property WHERE Property='$name'"))
+              $v.GetType().InvokeMember("Execute","InvokeMethod",$null,$v,$null)
+              $r = $v.GetType().InvokeMember("Fetch","InvokeMethod",$null,$v,$null)
+              if ($r) { $r.GetType().InvokeMember("StringData","GetProperty",$null,$r,1) } else { $null }
+          }
+          foreach ($p in @("ProductName","ProductVersion","Manufacturer","UpgradeCode")) {
+              $val = Get-MsiProperty $db $p
+              if (-not $val) { throw "MSI property $p is unset" }
+              "  {0,-15}: {1}" -f $p, $val
+          }
+
+          # Assert the payload really contains the application, not just chrome.
+          $v = $db.GetType().InvokeMember("OpenView","InvokeMethod",$null,$db,@("SELECT FileName FROM File"))
+          $v.GetType().InvokeMember("Execute","InvokeMethod",$null,$v,$null)
+          $names = @()
+          while ($true) {
+              $r = $v.GetType().InvokeMember("Fetch","InvokeMethod",$null,$v,$null)
+              if (-not $r) { break }
+              $names += $r.GetType().InvokeMember("StringData","GetProperty",$null,$r,1)
+          }
+          "  files          : $($names.Count)"
+          $missing = @()
+          foreach ($want in @('kicad.exe','eeschema.exe','pcbnew.exe','_eeschema.dll','_pcbnew.dll','kicommon.dll')) {
+              if (-not ($names | Where-Object { $_ -match [regex]::Escape($want) })) { $missing += $want }
+          }
+          if ($missing) { throw "MSI is missing: $($missing -join ', ')" }
+          "MSI OK"
 
       - name: Upload MSI
         if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
