@@ -197,6 +197,19 @@ jobs:
           call "%VCVARS%"
           cmake --install %BUILD_DIR% --prefix build\stage
 
+      # cmake --install alone produces a tree that cannot start: it omits the
+      # vcpkg runtime DLLs (present in the build tree only because of vcpkg's
+      # applocal step) and the generated JSON schemas, which nothing installs.
+      # Without this the MSI installs an application that dies with
+      # STATUS_DLL_NOT_FOUND before reaching main(). The script verifies by
+      # running kicad-cli, so a still-incomplete tree fails here rather than
+      # shipping.
+      - name: Complete and verify the staging tree
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
+        shell: pwsh
+        run: |
+          ./tools/ci/stage_install_tree.ps1 -StageDir build/stage -BuildDir $env:BUILD_DIR
+
       - name: Build MSI
         if: startsWith(github.ref, 'refs/tags/v') || inputs.package_msi
         shell: pwsh
