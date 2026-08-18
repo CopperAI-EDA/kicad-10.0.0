@@ -152,6 +152,17 @@ private:
     std::optional<int> fieldIndex( FIELD aField ) const;
 
 private:
+    /**
+     * Test whether a child widget is still alive.
+     *
+     * Deferred work (CallAfter) can run after our children have been destroyed
+     * but while this status bar is still alive, leaving dangling member
+     * pointers that pass a plain null check. A destroyed wxWindow removes
+     * itself from its parent's child list, so this searches that list by
+     * address without dereferencing the candidate.
+     */
+    bool isLiveChild( wxWindow* aWindow ) const;
+
     wxGauge*       m_backgroundProgressBar;
     wxButton*      m_backgroundStopButton;
     wxStaticText*  m_backgroundTxt;

@@ -22,6 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <algorithm>
 #include <unordered_map>
 
 #include <wx/gauge.h>
@@ -347,8 +348,15 @@ void BACKGROUND_JOBS_MONITOR::jobUpdated( std::shared_ptr<BACKGROUND_JOB> aJob )
             for( KISTATUSBAR* statusBar : m_statusBars )
             {
                 statusBar->CallAfter(
-                        [=]()
+                        [this, statusBar, aJob]()
                         {
+                            // CallAfter defers this to the event loop, by which time the
+                            // frame owning statusBar may have been destroyed and
+                            // unregistered -- the captured raw pointer would then be
+                            // dangling. Confirm it is still registered before using it.
+                            if( !isStatusBarRegistered( statusBar ) )
+                                return;
+
                             statusBar->ShowBackgroundProgressBar();
                             statusBar->SetBackgroundProgressMax( aJob->m_maxProgress );
                             statusBar->SetBackgroundProgress( aJob->m_currentProgress );
@@ -386,6 +394,12 @@ void BACKGROUND_JOBS_MONITOR::RegisterStatusBar( KISTATUSBAR* aStatusBar )
     // Make sure the newly-registered bar gets the active job, if any
     if( frontJob )
         jobUpdated( frontJob );
+}
+
+
+bool BACKGROUND_JOBS_MONITOR::isStatusBarRegistered( KISTATUSBAR* aStatusBar ) const
+{
+    return std::find( m_statusBars.begin(), m_statusBars.end(), aStatusBar ) != m_statusBars.end();
 }
 
 

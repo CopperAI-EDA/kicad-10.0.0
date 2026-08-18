@@ -47,6 +47,10 @@
 
 KISTATUSBAR::KISTATUSBAR( int aNumberFields, wxWindow* parent, wxWindowID id, STYLE_FLAGS aFlags ) :
         wxStatusBar( parent, id ),
+        // Must be initialised here: the guards elsewhere in this class test
+        // m_backgroundProgressBar != nullptr, and an uninitialised member is
+        // garbage that passes those tests and then faults on dereference.
+        m_backgroundProgressBar( nullptr ),
         m_backgroundStopButton( nullptr ),
         m_notificationsButton( nullptr ),
         m_warningButton( nullptr ),
@@ -218,6 +222,9 @@ void KISTATUSBAR::onNotificationsIconClick( wxCommandEvent& aEvent )
 
 void KISTATUSBAR::onBackgroundProgressClick( wxMouseEvent& aEvent )
 {
+    if( !isLiveChild( m_backgroundProgressBar ) )
+        return;
+
     wxPoint pos = m_backgroundProgressBar->GetScreenPosition();
 
     wxRect r;
@@ -250,9 +257,12 @@ void KISTATUSBAR::layoutControls()
     if( r.GetHeight() > textHeight )
         y += ( r.GetHeight() - textHeight ) / 2;
 
-    m_backgroundTxt->SetPosition( { x, y } );
-    m_backgroundTxt->SetSize( r.GetWidth(), textHeight );
-    updateBackgroundText();
+    if( isLiveChild( m_backgroundTxt ) )
+    {
+        m_backgroundTxt->SetPosition( { x, y } );
+        m_backgroundTxt->SetSize( r.GetWidth(), textHeight );
+        updateBackgroundText();
+    }
 
     GetFieldRect( m_normalFieldsCount + *fieldIndex( FIELD::BGJOB_GAUGE ), r );
     x = r.GetLeft();
@@ -261,7 +271,7 @@ void KISTATUSBAR::layoutControls()
     int           h = r.GetHeight();
     wxSize buttonSize( 0, 0 );
 
-    if( m_backgroundStopButton )
+    if( isLiveChild( m_backgroundStopButton ) )
     {
         buttonSize = m_backgroundStopButton->GetEffectiveMinSize();
         m_backgroundStopButton->SetPosition( { x + w - buttonSize.GetWidth(), y } );
@@ -269,8 +279,11 @@ void KISTATUSBAR::layoutControls()
         buttonSize.x += padding;
     }
 
-    m_backgroundProgressBar->SetPosition( { x + padding, y } );
-    m_backgroundProgressBar->SetSize( w - buttonSize.GetWidth() - padding, h );
+    if( isLiveChild( m_backgroundProgressBar ) )
+    {
+        m_backgroundProgressBar->SetPosition( { x + padding, y } );
+        m_backgroundProgressBar->SetSize( w - buttonSize.GetWidth() - padding, h );
+    }
 
     if( m_notificationsButton )
     {
@@ -296,14 +309,33 @@ void KISTATUSBAR::layoutControls()
 }
 
 
+bool KISTATUSBAR::isLiveChild( wxWindow* aWindow ) const
+{
+    // Startup calls wxSafeYield(), which pumps CallAfter() work queued by
+    // BACKGROUND_JOBS_MONITOR::jobUpdated before the frame has finished coming
+    // up. At that point our child widgets may already have been destroyed while
+    // this KISTATUSBAR itself is still alive and still registered, so a null
+    // check on the member is not enough -- it holds a dangling pointer and the
+    // first virtual call through it faults (0xc0000005).
+    //
+    // A destroyed wxWindow removes itself from its parent's child list, so
+    // searching that list by address is a liveness test that never dereferences
+    // the candidate.
+    if( !aWindow )
+        return false;
+
+    return GetChildren().Find( aWindow ) != nullptr;
+}
+
+
 void KISTATUSBAR::ShowBackgroundProgressBar( bool aCancellable )
 {
-    if( !m_backgroundProgressBar )
+    if( !isLiveChild( m_backgroundProgressBar ) )
         return;
 
     m_backgroundProgressBar->Show();
 
-    if( m_backgroundStopButton )
+    if( isLiveChild( m_backgroundStopButton ) )
         m_backgroundStopButton->Show( aCancellable );
 
     updateAuxFieldWidths();
@@ -312,12 +344,12 @@ void KISTATUSBAR::ShowBackgroundProgressBar( bool aCancellable )
 
 void KISTATUSBAR::HideBackgroundProgressBar()
 {
-    if( !m_backgroundProgressBar )
+    if( !isLiveChild( m_backgroundProgressBar ) )
         return;
 
     m_backgroundProgressBar->Hide();
 
-    if( m_backgroundStopButton )
+    if( isLiveChild( m_backgroundStopButton ) )
         m_backgroundStopButton->Hide();
 
     updateAuxFieldWidths();
@@ -326,7 +358,7 @@ void KISTATUSBAR::HideBackgroundProgressBar()
 
 void KISTATUSBAR::SetBackgroundProgress( int aAmount )
 {
-    if( !m_backgroundProgressBar )
+    if( !isLiveChild( m_backgroundProgressBar ) )
         return;
 
     int range = m_backgroundProgressBar->GetRange();
@@ -340,7 +372,7 @@ void KISTATUSBAR::SetBackgroundProgress( int aAmount )
 
 void KISTATUSBAR::SetBackgroundProgressMax( int aAmount )
 {
-    if( !m_backgroundProgressBar )
+    if( !isLiveChild( m_backgroundProgressBar ) )
         return;
 
     m_backgroundProgressBar->SetRange( aAmount );
@@ -388,7 +420,7 @@ void KISTATUSBAR::updateAuxFieldWidths()
     if( std::optional<int> idx = fieldIndex( FIELD::BGJOB_CANCEL ) )
     {
         m_fieldWidths[m_normalFieldsCount + *idx] =
-                m_backgroundStopButton && m_backgroundStopButton->IsShown() ? 20 : 0;
+                isLiveChild( m_backgroundStopButton ) && m_backgroundStopButton->IsShown() ? 20 : 0;
     }
 
     if( std::optional<int> idx = fieldIndex( FIELD::WARNING ) )
@@ -431,6 +463,9 @@ void KISTATUSBAR::updateBackgroundText()
         int margin = KIUI::GetTextSize( wxT( "XX" ), this ).x;
         text = wxControl::Ellipsize( text, dc, wxELLIPSIZE_END, std::max( 0, r.GetWidth() - margin ) );
     }
+
+    if( !isLiveChild( m_backgroundTxt ) )
+        return;
 
     m_backgroundTxt->SetLabel( text );
 }

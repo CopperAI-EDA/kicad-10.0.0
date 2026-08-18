@@ -122,6 +122,15 @@ public:
 
 private:
     /**
+     * Test whether a status bar is still registered.
+     *
+     * Work deferred with CallAfter captures status bars as raw pointers, and the
+     * owning frame may be destroyed before the deferred call runs. Callers use
+     * this to avoid dereferencing a stale pointer.
+     */
+    bool isStatusBarRegistered( KISTATUSBAR* aStatusBar ) const;
+
+    /**
      * Handles removing the shown list window from our list of shown windows
      */
     void onListWindowClosed( wxCloseEvent& aEvent );
