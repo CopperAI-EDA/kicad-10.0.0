@@ -292,6 +292,15 @@ option( KICAD_IPC_API
     "Enable IPC API"
     ON )
 
+# The AI Agent panel falls back to http://127.0.0.1:3000 when this is off, which
+# is the local development server. Shipped builds must point at the hosted chat
+# or the panel shows ERR_CONNECTION_REFUSED on every machine that is not a
+# developer's. docs/COPPERAI_PATCHES.md has always documented this as ON, but
+# nothing ever declared it -- so every build silently used the dev URL.
+option( KICAD_PRODUCTION_AGENT_CHAT_DEFAULT
+    "Point the AI Agent panel at the hosted chat instead of a local dev server"
+    ON )
+
 option( KICAD_IDF_TOOLS
     "Build additional idf tools"
     ON )
@@ -325,6 +334,7 @@ endif()
 # Pass defines into KiCad code based on the build options set
 add_compile_definitions( $<$<BOOL:${KICAD_SCRIPTING_WXPYTHON}>:KICAD_SCRIPTING_WXPYTHON> )
 add_compile_definitions( $<$<BOOL:${KICAD_SIGNAL_INTEGRITY}>:KICAD_SIGNAL_INTEGRITY> )
+add_compile_definitions( $<$<BOOL:${KICAD_PRODUCTION_AGENT_CHAT_DEFAULT}>:KICAD_PRODUCTION_AGENT_CHAT_DEFAULT> )
 
 add_compile_definitions( $<$<BOOL:${KICAD_USE_VALGRIND}>:KICAD_USE_VALGRIND> )
 add_compile_definitions( $<$<BOOL:${KICAD_GAL_PROFILE}>:KICAD_GAL_PROFILE> )

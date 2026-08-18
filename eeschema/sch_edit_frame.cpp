@@ -56,6 +56,7 @@
 #include <kiface_base.h>
 #include <kiplatform/app.h>
 #include <kiplatform/ui.h>
+#include <wx/settings.h>
 #include <kiway.h>
 #include <symbol_edit_frame.h>
 #include <symbol_viewer_frame.h>
@@ -3164,6 +3165,26 @@ void SCH_EDIT_FRAME::EnsureOllamaNotebook()
 
     m_ollamaAgentTabPanel->SetSizer( new wxBoxSizer( wxVERTICAL ) );
     m_datasheetTabPanel->SetSizer( new wxBoxSizer( wxVERTICAL ) );
+
+    // Theme the panel chrome to match the rest of the application. Without this
+    // the notebook and its pages render in the Windows system colours -- light
+    // grey tabs against KiCad's dark canvas -- because wx defaults to the system
+    // theme and nothing here overrode it. Every other KiCad widget (status bar,
+    // message panel, bitmap buttons) uses these same helpers.
+    {
+        const wxColour panelBG = KIPLATFORM::UI::GetPanelBGColour();
+        const wxColour panelFG = KIPLATFORM::UI::GetDialogBGColour().GetLuminance() < 0.5
+                                         ? wxColour( 229, 229, 229 )
+                                         : wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOWTEXT );
+
+        for( wxWindow* w : { static_cast<wxWindow*>( m_ollamaAgentNotebook ),
+                             static_cast<wxWindow*>( m_ollamaAgentTabPanel ),
+                             static_cast<wxWindow*>( m_datasheetTabPanel ) } )
+        {
+            w->SetBackgroundColour( panelBG );
+            w->SetForegroundColour( panelFG );
+        }
+    }
 
     m_ollamaAgentNotebook->AddPage( m_ollamaAgentTabPanel, _( "Agent" ), true );
     m_ollamaAgentNotebook->AddPage( m_datasheetTabPanel, _( "Datasheet" ), false );

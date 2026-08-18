@@ -1,6 +1,9 @@
 #include "resource.h"
 
-IDI_APP_PCBCALC_ICON ICON "../resources/bitmaps_png/icons/icon_pcbcalculator.ico"
+// Branded with the CopperAI application icon. Upstream KiCad ships a
+// per-application icon here; this fork has a single product icon, so all
+// applications use it rather than showing the KiCad logo.
+IDI_APP_PCBCALC_ICON ICON "../resources/bitmaps_png/icons/icon_copperai.ico"
 
 #define RC_VER_FILE_DESCRIPTION "KiCad PCB Calculator " KICAD_WIN32_RC_PRODVER_STR
 #define RC_VER_INTERNALNAME "pcb_calculator"

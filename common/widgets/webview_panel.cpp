@@ -573,6 +573,9 @@ WEBVIEW_PANEL::WEBVIEW_PANEL( wxWindow* aParent, wxWindowID aId, const wxPoint& 
     // Create toolbar with open/close buttons
     m_toolbar = new wxToolBar( this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                                wxTB_HORIZONTAL | wxTB_NODIVIDER );
+    // Match the application theme; an unthemed wxToolBar renders in Windows
+    // system colours and clashes with KiCad's dark chrome.
+    m_toolbar->SetBackgroundColour( KIPLATFORM::UI::GetPanelBGColour() );
 
     wxWindowID openId = wxNewId();
     wxWindowID closeId = wxNewId();
