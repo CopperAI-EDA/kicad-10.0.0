@@ -208,6 +208,19 @@ WX_GRID::WX_GRID( wxWindow *parent, wxWindowID id, const wxPoint& pos, const wxS
         wxGrid( parent, id, pos, size, style, name ),
         m_weOwnTable( false )
 {
+    // Row/column label windows are painted by wxMSW in system colours, so on a
+    // dark canvas the header text ends up white-on-white. The custom paint code
+    // further down only *reads* these, so they have to be set here.
+    {
+        const wxColour gridBG = KIPLATFORM::UI::GetPanelBGColour();
+        const wxColour gridFG = KIUI::GetReadableTextColour( gridBG );
+
+        SetLabelBackgroundColour( gridBG );
+        SetLabelTextColour( gridFG );
+        SetDefaultCellBackgroundColour( gridBG );
+        SetDefaultCellTextColour( gridFG );
+    }
+
     // Grids with comboboxes need a bit of extra height; other grids look better if they're consistent.
     SetDefaultRowSize( GetDefaultRowSize() + FromDIP( 4 ) );
 

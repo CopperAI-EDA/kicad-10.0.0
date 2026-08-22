@@ -1128,7 +1128,11 @@ private:
     SCH_DESIGN_BLOCK_PANE*      m_designBlocksPane;
     PANEL_REMOTE_SYMBOL*        m_remoteSymbolPane;
     wxWindow*                   m_ollamaAgentPane;      // Placeholder panel or notebook
-    wxNotebook*                 m_ollamaAgentNotebook;  // Lazy-created notebook for Agent/Datasheet tabs
+    // wxAuiNotebook, not wxNotebook: the native Windows tab control cannot be
+    // themed and renders light-grey system tabs against KiCad's dark chrome.
+    // wxAuiNotebook is owner-drawn, so WX_AUI_TAB_ART styles it like the rest
+    // of the application.
+    wxAuiNotebook*              m_ollamaAgentNotebook;  // Lazy-created notebook for Agent/Datasheet tabs
     wxWindow*                   m_ollamaAgentTabPanel;  // Parent panel for Agent WEBVIEW_PANEL
     wxWindow*                   m_datasheetTabPanel;    // Parent panel for Datasheet WEBVIEW_PANEL
     WEBVIEW_PANEL*              m_ollamaAgentWebView;   // Lazy-created Agent tab webview

@@ -577,6 +577,14 @@ WEBVIEW_PANEL::WEBVIEW_PANEL( wxWindow* aParent, wxWindowID aId, const wxPoint& 
     // system colours and clashes with KiCad's dark chrome.
     m_toolbar->SetBackgroundColour( KIPLATFORM::UI::GetPanelBGColour() );
 
+    // These two tools were added with wxNullBitmap, so they rendered as blank
+    // gaps that still consumed toolbar width -- two invisible buttons above the
+    // web view. They duplicated functionality the dock pane's own close button
+    // already provides, so the whole toolbar is now hidden by default and the
+    // web view gets the full panel height.
+    //
+    // The tools are still registered (and OnToolbarClick still handles them) so
+    // ShowBrowser() keeps working for callers; only the empty chrome is gone.
     wxWindowID openId = wxNewId();
     wxWindowID closeId = wxNewId();
 
@@ -586,6 +594,7 @@ WEBVIEW_PANEL::WEBVIEW_PANEL( wxWindow* aParent, wxWindowID aId, const wxPoint& 
                         wxT( "Close WebView" ), wxT( "Hide the webview panel" ) );
 
     m_toolbar->Realize();
+    m_toolbar->Hide();
 
     // Store button IDs
     m_btnOpenId = openId;
@@ -607,6 +616,8 @@ WEBVIEW_PANEL::WEBVIEW_PANEL( wxWindow* aParent, wxWindowID aId, const wxPoint& 
 
     // Layout
     wxBoxSizer* sizer = new wxBoxSizer( wxVERTICAL );
+    // Proportion 0 with the toolbar hidden reserves no height; without the
+    // Hide() above this row was a permanent empty strip.
     sizer->Add( m_toolbar, 0, wxEXPAND );
     sizer->Add( m_browser, 1, wxEXPAND | wxALL, 0 );
     SetSizer( sizer );

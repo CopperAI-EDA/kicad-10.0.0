@@ -23,6 +23,7 @@
  */
 
 #include <widgets/lib_tree.h>
+#include <kiplatform/ui.h>
 #include <widgets/bitmap_button.h>
 #include <core/kicad_algo.h>
 #include <algorithm>
@@ -171,6 +172,12 @@ LIB_TREE::LIB_TREE( wxWindow* aParent, const wxString& aRecentSearchesKey,
     // Tree control
     int dvFlags = ( aFlags & MULTISELECT ) ? wxDV_MULTIPLE : wxDV_SINGLE;
     m_tree_ctrl = new WX_DATAVIEWCTRL( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, dvFlags );
+    // wxMSW renders list/tree controls in system colours regardless of the
+    // parent's theme, so on a dark canvas the rows and column headers come out
+    // white-on-white. Every other themed widget here uses these helpers.
+    const wxColour panelBG = KIPLATFORM::UI::GetPanelBGColour();
+    m_tree_ctrl->SetBackgroundColour( panelBG );
+    m_tree_ctrl->SetForegroundColour( KIUI::GetReadableTextColour( panelBG ) );
     m_adapter->AttachTo( m_tree_ctrl );
 
 #ifdef __WXGTK__

@@ -426,3 +426,15 @@ wxMenuItem* KIUI::AddMenuItem( wxMenu* aMenu, wxMenu* aSubMenu, int aId, const w
 
     return item;
 }
+
+wxColour KIUI::GetReadableTextColour( const wxColour& aBackground )
+{
+    // Relative luminance; the 0.5 split matches what KIPLATFORM::UI::IsDarkTheme
+    // effectively decides, but keyed to the actual background handed in so this
+    // stays correct for widgets that use a non-default colour.
+    double luma = ( 0.299 * aBackground.Red()
+                  + 0.587 * aBackground.Green()
+                  + 0.114 * aBackground.Blue() ) / 255.0;
+
+    return luma < 0.5 ? wxColour( 229, 229, 229 ) : wxColour( 20, 20, 20 );
+}

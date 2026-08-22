@@ -27,6 +27,8 @@
 #include <wx/log.h>
 #include <wx/settings.h>
 #include <widgets/html_window.h>
+#include <widgets/ui_common.h>
+#include <kiplatform/ui.h>
 
 
 HTML_WINDOW::HTML_WINDOW( wxWindow* aParent, wxWindowID aId, const wxPoint& aPos,
@@ -53,9 +55,14 @@ bool HTML_WINDOW::SetPage( const wxString& aSource )
 {
     m_pageSource = aSource;
 
-    wxColour fgColor   = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOWTEXT );
-    wxColour bgColor   = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW );
-    wxColour linkColor = wxSystemSettings::GetColour( wxSYS_COLOUR_HOTLIGHT );
+    // wxSYS_COLOUR_WINDOW/WINDOWTEXT are the *system* colours, which stay
+    // white-on-black on Windows no matter what theme the application is using.
+    // Rendering the page with them turns every description pane into a bright
+    // white block on the dark canvas.
+    wxColour bgColor   = KIPLATFORM::UI::GetPanelBGColour();
+    wxColour fgColor   = KIUI::GetReadableTextColour( bgColor );
+    wxColour linkColor = KIPLATFORM::UI::IsDarkTheme() ? wxColour( 102, 176, 255 )
+                                                      : wxSystemSettings::GetColour( wxSYS_COLOUR_HOTLIGHT );
 
     wxString html = wxString::Format( wxT( "<html>\n<body text='%s' bgcolor='%s' link='%s'>\n" ),
                                       fgColor.GetAsString( wxC2S_HTML_SYNTAX ),

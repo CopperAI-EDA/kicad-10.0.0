@@ -228,6 +228,25 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
     wxIcon icon;
     wxIconBundle icon_bundle;
 
+    // On Windows the window/taskbar icon must come from the embedded .ico
+    // resource, not the PNG bitmap set. resources/msw/*.rc points those at
+    // icon_copperai.ico, so this keeps the taskbar, title bar and Explorer icon
+    // consistent; the BITMAPS::icon_kicad path below is upstream artwork and
+    // would show the KiCad logo instead.
+#ifdef __WXMSW__
+    {
+        wxIcon resIcon( wxT( "IDI_APP_KICAD_ICON" ), wxBITMAP_TYPE_ICO_RESOURCE );
+
+        if( resIcon.IsOk() )
+            icon_bundle.AddIcon( resIcon );
+    }
+
+    if( !icon_bundle.IsEmpty() )
+    {
+        SetIcons( icon_bundle );
+    }
+    else
+#endif
     if( IsNightlyVersion())
     {
         icon.CopyFromBitmap( KiBitmap( BITMAPS::icon_kicad_nightly, 48 ) );

@@ -48,6 +48,15 @@ class wxMenu;
 
 namespace KIUI
 {
+/**
+ * Return a text colour that is legible against @p aBackground.
+ *
+ * wxMSW paints list, tree and grid controls in system colours no matter what the
+ * parent's theme is, so widgets that only set a dark background end up drawing
+ * dark-on-dark or white-on-white. Pair every SetBackgroundColour() with this.
+ */
+KICOMMON_API wxColour GetReadableTextColour( const wxColour& aBackground );
+
 
 const int c_IndicatorSizeDIP = 10;
 

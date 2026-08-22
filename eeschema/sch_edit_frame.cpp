@@ -56,6 +56,8 @@
 #include <kiface_base.h>
 #include <kiplatform/app.h>
 #include <kiplatform/ui.h>
+#include <widgets/wx_aui_art_providers.h>
+#include <wx/aui/auibook.h>
 #include <wx/settings.h>
 #include <kiway.h>
 #include <symbol_edit_frame.h>
@@ -210,6 +212,25 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     wxIcon       icon;
     wxIconBundle icon_bundle;
 
+    // On Windows the window/taskbar icon must come from the embedded .ico
+    // resource, not the PNG bitmap set. resources/msw/*.rc points those at
+    // icon_copperai.ico, so this keeps the taskbar, title bar and Explorer icon
+    // consistent; the BITMAPS::icon_kicad path below is upstream artwork and
+    // would show the KiCad logo instead.
+#ifdef __WXMSW__
+    {
+        wxIcon resIcon( wxT( "IDI_APP_EESCHEMA_ICON" ), wxBITMAP_TYPE_ICO_RESOURCE );
+
+        if( resIcon.IsOk() )
+            icon_bundle.AddIcon( resIcon );
+    }
+
+    if( !icon_bundle.IsEmpty() )
+    {
+        SetIcons( icon_bundle );
+    }
+    else
+#endif
     icon.CopyFromBitmap( KiBitmap( BITMAPS::icon_eeschema, 48 ) );
     icon_bundle.AddIcon( icon );
     icon.CopyFromBitmap( KiBitmap( BITMAPS::icon_eeschema, 128 ) );
@@ -3155,9 +3176,15 @@ void SCH_EDIT_FRAME::EnsureOllamaNotebook()
     if( m_ollamaAgentPane )
         m_ollamaAgentPane->Destroy();
 
+    // wxAUI_NB_TOP with no close buttons or scroll arrows: two fixed tabs, so the
+    // extra chrome is noise. WX_AUI_TAB_ART is KiCad's themed renderer -- the
+    // same one panel_design_block_lib_table uses -- which is what makes these
+    // read as application tabs rather than Win32 system tabs.
     m_ollamaAgentNotebook =
-            new wxNotebook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
-                            wxNB_TOP | wxBORDER_NONE | wxCLIP_CHILDREN );
+            new wxAuiNotebook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                               wxAUI_NB_TOP | wxBORDER_NONE
+                                       | wxAUI_NB_TAB_MOVE * 0 );
+    m_ollamaAgentNotebook->SetArtProvider( new WX_AUI_TAB_ART() );
     m_ollamaAgentTabPanel = new wxPanel( m_ollamaAgentNotebook, wxID_ANY, wxDefaultPosition,
                                          wxDefaultSize, wxBORDER_NONE );
     m_datasheetTabPanel = new wxPanel( m_ollamaAgentNotebook, wxID_ANY, wxDefaultPosition,
@@ -3188,7 +3215,7 @@ void SCH_EDIT_FRAME::EnsureOllamaNotebook()
 
     m_ollamaAgentNotebook->AddPage( m_ollamaAgentTabPanel, _( "Agent" ), true );
     m_ollamaAgentNotebook->AddPage( m_datasheetTabPanel, _( "Datasheet" ), false );
-    m_ollamaAgentNotebook->Bind( wxEVT_NOTEBOOK_PAGE_CHANGED,
+    m_ollamaAgentNotebook->Bind( wxEVT_AUINOTEBOOK_PAGE_CHANGED,
                                  &SCH_EDIT_FRAME::OnOllamaNotebookPageChanged, this );
 
     m_ollamaAgentPane = m_ollamaAgentNotebook;
