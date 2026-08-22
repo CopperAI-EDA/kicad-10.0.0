@@ -41,9 +41,11 @@
 class BACKGROUND_JOB_PANEL : public wxPanel
 {
 public:
+    // wxBORDER_NONE throughout this file: on Windows the simple/sunken borders are drawn in a
+    // system (light) colour, which clashes with the dark chrome of the progress popups.
     BACKGROUND_JOB_PANEL( wxWindow* aParent, std::shared_ptr<BACKGROUND_JOB> aJob ) :
             wxPanel( aParent, wxID_ANY, wxDefaultPosition, wxSize( -1, 75 ),
-                     wxBORDER_SIMPLE ),
+                     wxBORDER_NONE ),
             m_job( aJob )
     {
         SetSizeHints( wxDefaultSize, wxDefaultSize );
@@ -97,7 +99,7 @@ class BACKGROUND_JOB_LIST : public wxFrame
 public:
     BACKGROUND_JOB_LIST( wxWindow* parent, const wxPoint& pos ) :
             wxFrame( parent, wxID_ANY, _( "Background Jobs" ), pos, wxSize( 300, 150 ),
-                     wxFRAME_NO_TASKBAR | wxBORDER_SIMPLE )
+                     wxFRAME_NO_TASKBAR | wxBORDER_NONE )
     {
         SetSizeHints( wxDefaultSize, wxDefaultSize );
 

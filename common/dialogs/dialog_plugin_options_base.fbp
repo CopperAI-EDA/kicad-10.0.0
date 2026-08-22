@@ -167,7 +167,7 @@
                                         <property name="tooltip"></property>
                                         <property name="window_extra_style"></property>
                                         <property name="window_name"></property>
-                                        <property name="window_style">wxBORDER_SIMPLE|wxVSCROLL</property>
+                                        <property name="window_style">wxBORDER_NONE|wxVSCROLL</property>
                                         <event name="OnGridCellChange">onGridCellChange</event>
                                         <event name="OnSize">onSize</event>
                                         <event name="OnUpdateUI">onUpdateUI</event>
@@ -560,7 +560,7 @@
                                         <property name="tooltip"></property>
                                         <property name="window_extra_style"></property>
                                         <property name="window_name"></property>
-                                        <property name="window_style">wxBORDER_SIMPLE|wxVSCROLL</property>
+                                        <property name="window_style">wxBORDER_NONE|wxVSCROLL</property>
                                     </object>
                                 </object>
                             </object>

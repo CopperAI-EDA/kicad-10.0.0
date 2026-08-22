@@ -37,6 +37,7 @@
 #include <wx/dialog.h>
 #include <wx/filepicker.h>
 #include <wx/grid.h>
+#include <wx/itemattr.h>
 #include <wx/listbox.h>
 #include <wx/listctrl.h>
 #include <wx/dialog.h>
@@ -417,6 +418,26 @@ void KIPLATFORM::UI::ApplyDarkWindowTheme( wxWindow* aWindow )
     }
 
     setDarkWindowColours( aWindow, bg, text );
+
+    // Column headers on wxDataViewCtrl / wxListCtrl are native wxHeaderCtrls,
+    // which ignore SetBackgroundColour()/SetForegroundColour() entirely -- the
+    // recursion below reaches them but the calls do nothing, which is why the
+    // symbol chooser's headers stayed white-on-white while its rows went dark.
+    // SetHeaderAttr() is the supported way to colour them.
+    if( wxDataViewCtrl* dataView = dynamic_cast<wxDataViewCtrl*>( aWindow ) )
+    {
+        wxItemAttr headerAttr;
+        headerAttr.SetBackgroundColour( controlBg );
+        headerAttr.SetTextColour( fg );
+        dataView->SetHeaderAttr( headerAttr );
+    }
+    else if( wxListCtrl* listCtrl = dynamic_cast<wxListCtrl*>( aWindow ) )
+    {
+        wxItemAttr headerAttr;
+        headerAttr.SetBackgroundColour( controlBg );
+        headerAttr.SetTextColour( fg );
+        listCtrl->SetHeaderAttr( headerAttr );
+    }
 
     if( wxGrid* grid = dynamic_cast<wxGrid*>( aWindow ) )
     {

@@ -3220,6 +3220,13 @@ void SCH_EDIT_FRAME::EnsureOllamaNotebook()
 
     m_ollamaAgentPane = m_ollamaAgentNotebook;
     agentPane.Window( m_ollamaAgentPane );
+
+    // EDA_BASE_FRAME themes the frame once, from its wxEVT_SHOW handler. This
+    // notebook is created lazily the first time the panel is opened, which is
+    // long after that fired, so nothing here has been themed yet -- re-run the
+    // pass over the new subtree.
+    KIPLATFORM::UI::ApplyDarkWindowTheme( m_ollamaAgentNotebook );
+
     m_auimgr.Update();
 }
 

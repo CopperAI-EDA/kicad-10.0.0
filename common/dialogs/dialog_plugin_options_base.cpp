@@ -26,7 +26,7 @@ DIALOG_PLUGIN_OPTIONS_BASE::DIALOG_PLUGIN_OPTIONS_BASE( wxWindow* parent, wxWind
 	m_grid_sizer = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Plugin Options") ), wxVERTICAL );
 
 	m_grid_sizer->SetMinSize( wxSize( 400,300 ) );
-	m_grid = new WX_GRID( m_grid_sizer->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SIMPLE|wxVSCROLL );
+	m_grid = new WX_GRID( m_grid_sizer->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE|wxVSCROLL );
 
 	// Grid
 	m_grid->CreateGrid( 1, 2 );
@@ -88,7 +88,7 @@ DIALOG_PLUGIN_OPTIONS_BASE::DIALOG_PLUGIN_OPTIONS_BASE( wxWindow* parent, wxWind
 
 	m_options_sizer->Add( 0, 0, 0, wxEXPAND|wxTOP|wxBOTTOM, 5 );
 
-	m_html = new HTML_WINDOW( m_options_sizer->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO|wxBORDER_SIMPLE|wxVSCROLL );
+	m_html = new HTML_WINDOW( m_options_sizer->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO|wxBORDER_NONE|wxVSCROLL );
 	m_html->SetMinSize( wxSize( 280,100 ) );
 
 	m_options_sizer->Add( m_html, 2, wxALL|wxEXPAND, 5 );

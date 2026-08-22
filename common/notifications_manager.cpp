@@ -62,8 +62,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE( NOTIFICATION, title, description, href, key,
 class NOTIFICATION_PANEL : public wxPanel
 {
 public:
+    // wxBORDER_NONE throughout this file: on Windows the simple/sunken borders are drawn in a
+    // system (light) colour, which clashes with the dark chrome of the notification popups.
     NOTIFICATION_PANEL( wxWindow* aParent, NOTIFICATIONS_MANAGER* aManager, NOTIFICATION* aNoti ) :
-            wxPanel( aParent, wxID_ANY, wxDefaultPosition, wxSize( -1, 75 ), wxBORDER_SIMPLE ),
+            wxPanel( aParent, wxID_ANY, wxDefaultPosition, wxSize( -1, 75 ), wxBORDER_NONE ),
             m_hlDetails( nullptr ),
             m_notification( aNoti ),
             m_manager( aManager )
@@ -155,7 +157,7 @@ class NOTIFICATIONS_LIST : public wxFrame
 public:
     NOTIFICATIONS_LIST( NOTIFICATIONS_MANAGER* aManager, wxWindow* parent, const wxPoint& pos ) :
             wxFrame( parent, wxID_ANY, _( "Notifications" ), pos, wxSize( 300, 150 ),
-                     wxFRAME_NO_TASKBAR | wxBORDER_SIMPLE ),
+                     wxFRAME_NO_TASKBAR | wxBORDER_NONE ),
             m_manager( aManager )
     {
         SetSizeHints( wxDefaultSize, wxDefaultSize );
@@ -164,7 +166,7 @@ public:
         bSizer1 = new wxBoxSizer( wxVERTICAL );
 
         m_scrolledWindow = new wxScrolledWindow( this, wxID_ANY, wxDefaultPosition,
-                                                 wxSize( -1, -1 ), wxVSCROLL | wxBORDER_SIMPLE );
+                                                 wxSize( -1, -1 ), wxVSCROLL | wxBORDER_NONE );
         wxColour fg, bg;
         KIPLATFORM::UI::GetInfoBarColours( fg, bg );
         m_scrolledWindow->SetBackgroundColour( bg );

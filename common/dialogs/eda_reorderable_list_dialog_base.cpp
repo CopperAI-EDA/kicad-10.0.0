@@ -40,7 +40,7 @@ EDA_REORDERABLE_LIST_DIALOG_BASE::EDA_REORDERABLE_LIST_DIALOG_BASE( wxWindow* pa
 	m_enabledListLabel->Wrap( -1 );
 	fgSizer1->Add( m_enabledListLabel, 0, 0, 5 );
 
-	m_availableListBox = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxBORDER_SIMPLE|wxVSCROLL );
+	m_availableListBox = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxBORDER_NONE|wxVSCROLL );
 	m_availableListBox->SetMinSize( wxSize( 140,20 ) );
 
 	fgSizer1->Add( m_availableListBox, 1, wxEXPAND, 5 );
@@ -57,7 +57,7 @@ EDA_REORDERABLE_LIST_DIALOG_BASE::EDA_REORDERABLE_LIST_DIALOG_BASE( wxWindow* pa
 
 	fgSizer1->Add( bMiddleButtons, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT|wxLEFT, 10 );
 
-	m_enabledListBox = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxBORDER_SIMPLE|wxVSCROLL );
+	m_enabledListBox = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxBORDER_NONE|wxVSCROLL );
 	m_enabledListBox->SetMinSize( wxSize( 140,20 ) );
 
 	fgSizer1->Add( m_enabledListBox, 3, wxEXPAND, 5 );

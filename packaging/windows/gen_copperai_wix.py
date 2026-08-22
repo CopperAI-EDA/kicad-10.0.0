@@ -82,10 +82,14 @@ def emit_dir(directory: Path, indent: int = 4) -> list[str]:
 
 lines = [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">',
+    '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">',
     f'  <Package Name="CopperAI" Manufacturer="Stropical" Version="{VERSION}" UpgradeCode="{{6B0F06F9-7551-48AC-9B71-16D1189095D8}}" Scope="perMachine">',
-    '    <MajorUpgrade DowngradeErrorMessage="A newer version of CopperAI is already installed." />',
+    '    <!-- AllowSameVersionUpgrades=yes: installing 1.2.0 over an existing 1.2.0 is otherwise not an upgrade at all, so Windows Installer reports success and leaves the old files in place. MSI compares only the first three version fields. -->',
+    '    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of CopperAI is already installed." />',
     '    <MediaTemplate EmbedCab="yes" />',
+    '    <!-- Without a UI reference the package installs with no wizard at all: double-clicking it churns for minutes behind a bare progress bar, with no Next button and no completion dialog, which reads as a broken installer. WixUI_InstallDir gives the expected welcome / license / install-location / progress / finish flow. Requires building with -ext WixToolset.UI.wixext. -->',
+    '    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />',
+    '    <WixVariable Id="WixUILicenseRtf" Value="packaging/windows/license.rtf" />',
     f'    <CustomAction Id="LaunchCopperAI" FileRef="{kicad_file_id}" ExeCommand="" Execute="immediate" Return="asyncNoWait" />',
     '    <InstallExecuteSequence>',
     '      <Custom Action="LaunchCopperAI" After="InstallFinalize" Condition="NOT Installed" />',
