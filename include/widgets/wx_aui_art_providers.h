@@ -92,19 +92,33 @@ public:
 };
 
 
-class WX_AUI_TAB_ART : public wxAuiGenericTabArt
+/**
+ * Notebook tab rendering.
+ *
+ * Derives from wxAuiFlatTabArt, not wxAuiGenericTabArt. wx 3.3 ships both; the
+ * generic one draws the old trapezoid-with-gradient tabs and the flat one is
+ * what wxAuiDefaultTabArt is #defined to. Using the generic art was the reason
+ * the notebook tabs kept looking like a Win32 application while the rest of the
+ * chrome had been darkened.
+ */
+class WX_AUI_TAB_ART : public wxAuiFlatTabArt
 {
 public:
-    WX_AUI_TAB_ART() :
-            wxAuiGenericTabArt()
-    {}
+    WX_AUI_TAB_ART();
 
-    wxAuiTabArt* Clone() override
+    wxNODISCARD wxAuiTabArt* Clone() override
     {
+        // Constructed fresh rather than copied: wxAuiFlatTabArt deletes its copy
+        // constructor because these are used polymorphically.
         return new WX_AUI_TAB_ART();
     }
 
-    void DrawTab( wxDC& dc, wxWindow* wnd, const wxAuiNotebookPage& page, const wxRect& in_rect,
-                  int close_button_state, wxRect* out_tab_rect, wxRect* out_button_rect, int* x_extent ) override;
+    /**
+     * wx 3.3 replaced DrawTab()'s close_button_state parameter with a per-page
+     * button vector, so the "hide the close button on non-closable pages"
+     * behaviour moved from an argument to editing page.buttons.
+     */
+    int DrawPageTab( wxDC& dc, wxWindow* wnd, wxAuiNotebookPage& page,
+                     const wxRect& rect ) override;
 };
 

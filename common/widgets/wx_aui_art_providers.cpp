@@ -473,17 +473,32 @@ void WX_AUI_DOCK_ART::DrawBorder( wxDC& aDc, wxWindow*, const wxRect& aRect,
 }
 
 
-void WX_AUI_TAB_ART::DrawTab( wxDC& dc, wxWindow* wnd, const wxAuiNotebookPage& page, const wxRect& in_rect,
-                              int close_button_state, wxRect* out_tab_rect, wxRect* out_button_rect,
-                              int* x_extent )
+WX_AUI_TAB_ART::WX_AUI_TAB_ART() :
+        wxAuiFlatTabArt()
+{
+    // The flat art derives its whole ramp from these two, so setting them is
+    // enough to theme the tab strip; there is no need to override DrawBackground.
+    SetColour( KIUI::PALETTE::Surface() );
+    SetActiveColour( KIUI::PALETTE::SurfaceRaised() );
+}
+
+
+int WX_AUI_TAB_ART::DrawPageTab( wxDC& dc, wxWindow* wnd, wxAuiNotebookPage& page,
+                                 const wxRect& rect )
 {
     PANEL_NOTEBOOK_BASE* panel = dynamic_cast<PANEL_NOTEBOOK_BASE*>( page.window );
 
     if( panel && !panel->GetClosable() )
-        close_button_state = wxAUI_BUTTON_STATE_HIDDEN;
+    {
+        // wx 3.3 moved this from a DrawTab() argument to per-page button state.
+        for( wxAuiTabContainerButton& button : page.buttons )
+        {
+            if( button.id == wxAUI_BUTTON_CLOSE )
+                button.curState = wxAUI_BUTTON_STATE_HIDDEN;
+        }
+    }
 
-    return wxAuiGenericTabArt::DrawTab( dc, wnd, page, in_rect, close_button_state, out_tab_rect,
-                                        out_button_rect, x_extent );
+    return wxAuiFlatTabArt::DrawPageTab( dc, wnd, page, rect );
 }
 
 
