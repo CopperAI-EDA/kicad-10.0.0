@@ -345,9 +345,9 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
                                             .DestroyOnClose( false )
                                             .Show( m_show_search ) );
 
-    // Widen the AUI sash so the resize handle between the agent panel and the
-    // canvas is easier to grab (default is ~4 px which is too narrow on macOS).
-    m_auimgr.GetArtProvider()->SetMetric( wxAUI_DOCKART_SASH_SIZE, FromDIP( 6 ) );
+    // The sash width is set once in WX_AUI_DOCK_ART's constructor. It used to be
+    // overridden here with FromDIP( 6 ), which wx then DPI-scaled again inside
+    // GetMetricForWindow -- roughly 13px at 150%, and only in eeschema.
 
     // Add the Ollama Agent panel on the right side
     m_auimgr.AddPane( m_ollamaAgentPane,

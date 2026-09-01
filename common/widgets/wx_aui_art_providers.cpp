@@ -25,6 +25,9 @@
 #include <wx/settings.h>
 
 #include <kiplatform/ui.h>
+#include <kicad_ui_palette.h>
+#include <wx/graphics.h>
+#include <wx/dcgraph.h>
 #include <pgm_base.h>
 #include <settings/common_settings.h>
 #include <widgets/panel_notebook_base.h>
@@ -48,13 +51,16 @@ static wxColour auiPanelBg()
 
 static wxColour auiCaptionBg()
 {
-    return wxColour( 24, 24, 24 );
+    return KIUI::PALETTE::SurfaceSunken();
 }
 
 
 static wxColour auiBorderColour()
 {
-    return wxColour( 45, 45, 45 );
+    // Was ( 45, 45, 45 ), which disagreed with the ( 68, 68, 68 ) that
+    // ApplyDarkWindowTheme paints everywhere else. Hairline is deliberately
+    // closer to Surface: the goal is separation by spacing, not by stroke.
+    return KIUI::PALETTE::Hairline();
 }
 
 
@@ -381,17 +387,26 @@ WX_AUI_DOCK_ART::WX_AUI_DOCK_ART() :
 #endif
 
     SetColour( wxAUI_DOCKART_BACKGROUND_COLOUR, auiPanelBg() );
-    SetColour( wxAUI_DOCKART_SASH_COLOUR, wxColour( 18, 18, 18 ) );
+    SetColour( wxAUI_DOCKART_SASH_COLOUR, KIUI::PALETTE::Field() );
     SetColour( wxAUI_DOCKART_BORDER_COLOUR, auiBorderColour() );
-    SetColour( wxAUI_DOCKART_GRIPPER_COLOUR, wxColour( 90, 90, 90 ) );
+    SetColour( wxAUI_DOCKART_GRIPPER_COLOUR, KIUI::PALETTE::TextMuted() );
     SetColour( wxAUI_DOCKART_ACTIVE_CAPTION_COLOUR, auiCaptionBg() );
     SetColour( wxAUI_DOCKART_ACTIVE_CAPTION_GRADIENT_COLOUR, auiCaptionBg() );
     SetColour( wxAUI_DOCKART_INACTIVE_CAPTION_COLOUR, auiCaptionBg() );
     SetColour( wxAUI_DOCKART_INACTIVE_CAPTION_GRADIENT_COLOUR, auiCaptionBg() );
-    SetColour( wxAUI_DOCKART_ACTIVE_CAPTION_TEXT_COLOUR, wxColour( 245, 245, 245 ) );
-    SetColour( wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, wxColour( 245, 245, 245 ) );
+
+    // Caption text was ( 245, 245, 245 ), brighter than the TextPrimary used for
+    // the content inside the pane. That inverts the hierarchy -- the frame ends
+    // up louder than what it frames.
+    SetColour( wxAUI_DOCKART_ACTIVE_CAPTION_TEXT_COLOUR, KIUI::PALETTE::TextMuted() );
+    SetColour( wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, KIUI::PALETTE::TextMuted() );
+
     SetMetric( wxAUI_DOCKART_PANE_BORDER_SIZE, 0 );
-    SetMetric( wxAUI_DOCKART_SASH_SIZE, 2 );
+
+    // Set once here. eeschema used to override this to FromDIP( 6 ) after
+    // construction, which wx then DPI-scaled a second time in
+    // GetMetricForWindow -- about 13px at 150%, and only in eeschema.
+    SetMetric( wxAUI_DOCKART_SASH_SIZE, 6 );
 
     // Turn off the ridiculous looking gradient
     m_gradientType = wxAUI_GRADIENT_NONE;
@@ -442,6 +457,16 @@ void WX_AUI_DOCK_ART::DrawBorder( wxDC& aDc, wxWindow*, const wxRect& aRect,
     if( !aPane.HasBorder() )
         return;
 
+    // wxAUI_DOCKART_PANE_BORDER_SIZE is 0, so a docked pane has no space
+    // allocated for a border: stroking one here painted over the first row of
+    // the child's own pixels, which is the faint outline that appeared around
+    // panel contents. Docked panes are separated by the sash and by spacing.
+    //
+    // A floating pane is a different case -- it has no neighbours to separate it
+    // from, so it does get an outline.
+    if( !aPane.IsFloating() )
+        return;
+
     aDc.SetPen( wxPen( auiBorderColour(), 1 ) );
     aDc.SetBrush( *wxTRANSPARENT_BRUSH );
     aDc.DrawRectangle( aRect );
@@ -459,4 +484,96 @@ void WX_AUI_TAB_ART::DrawTab( wxDC& dc, wxWindow* wnd, const wxAuiNotebookPage& 
 
     return wxAuiGenericTabArt::DrawTab( dc, wnd, page, in_rect, close_button_state, out_tab_rect,
                                         out_button_rect, x_extent );
+}
+
+
+void WX_AUI_DOCK_ART::DrawPaneButton( wxDC& aDc, wxWindow* aWindow, int aButton,
+                                      int aButtonState, const wxRect& aRect,
+                                      wxAuiPaneInfo& aPane )
+{
+    // wxAuiDefaultDockArt draws a 3D raised box on hover and a sunken one on
+    // press, using the Win32 system colours. Flat surfaces and a hand-drawn
+    // glyph instead.
+    //
+    // The glyph is drawn with DrawLine rather than GetPaneButtonBitmap(): that
+    // accessor is wx 3.3 only and this tree's CMake floor is 3.2.
+    wxRect rect = aRect;
+
+    if( aButtonState == wxAUI_BUTTON_STATE_HIDDEN )
+        return;
+
+    // Nothing at rest -- a button that is always visibly boxed reads as heavy.
+    if( aButtonState == wxAUI_BUTTON_STATE_HOVER
+            || aButtonState == wxAUI_BUTTON_STATE_PRESSED )
+    {
+        const wxColour fill = ( aButtonState == wxAUI_BUTTON_STATE_PRESSED )
+                                      ? KIUI::PALETTE::SurfacePressed()
+                                      : KIUI::PALETTE::SurfaceRaised();
+
+        wxRect hover = rect;
+        hover.Deflate( 1 );
+
+        // wxGCDC for an antialiased corner; plain wxDC::DrawRoundedRectangle
+        // gives visibly stepped edges at this size.
+        wxGCDC gcdc( static_cast<wxWindowDC&>( aDc ) );
+
+        if( wxGraphicsContext* gc = gcdc.GetGraphicsContext() )
+        {
+            gc->SetAntialiasMode( wxANTIALIAS_DEFAULT );
+            gcdc.SetPen( *wxTRANSPARENT_PEN );
+            gcdc.SetBrush( wxBrush( fill ) );
+            gcdc.DrawRoundedRectangle( hover, aWindow->FromDIP( 3 ) );
+        }
+        else
+        {
+            aDc.SetPen( *wxTRANSPARENT_PEN );
+            aDc.SetBrush( wxBrush( fill ) );
+            aDc.DrawRectangle( hover );
+        }
+    }
+
+    const wxColour glyph = ( aButtonState == wxAUI_BUTTON_STATE_HOVER
+                             || aButtonState == wxAUI_BUTTON_STATE_PRESSED )
+                                   ? KIUI::PALETTE::TextPrimary()
+                                   : KIUI::PALETTE::TextMuted();
+
+    aDc.SetPen( wxPen( glyph, aWindow->FromDIP( 1 ) ) );
+
+    // Inset well inside the button box; the stock glyph nearly fills it, which
+    // is part of why it reads as cramped.
+    wxRect g = rect;
+    g.Deflate( aWindow->FromDIP( 5 ) );
+
+    switch( aButton )
+    {
+    case wxAUI_BUTTON_CLOSE:
+        aDc.DrawLine( g.GetLeft(), g.GetTop(), g.GetRight() + 1, g.GetBottom() + 1 );
+        aDc.DrawLine( g.GetLeft(), g.GetBottom() + 1, g.GetRight() + 1, g.GetTop() );
+        break;
+
+    case wxAUI_BUTTON_PIN:
+        // A simple horizontal bar reads as "pinned" without the stock pin
+        // bitmap, which is a Win32-era raster.
+        aDc.DrawLine( g.GetLeft(), g.GetBottom(), g.GetRight() + 1, g.GetBottom() );
+        break;
+
+    case wxAUI_BUTTON_MAXIMIZE_RESTORE:
+        aDc.SetBrush( *wxTRANSPARENT_BRUSH );
+        aDc.DrawRectangle( g );
+        break;
+
+    default:
+        // Anything else keeps the stock rendering rather than guessing.
+        wxAuiDefaultDockArt::DrawPaneButton( aDc, aWindow, aButton, aButtonState, aRect, aPane );
+        break;
+    }
+}
+
+
+wxAuiDockArt* WX_AUI_DOCK_ART::Clone()
+{
+    // Copy-construct: wxAuiDefaultDockArt::Clone() returns a base instance, so a
+    // floated pane would keep our colours but lose every Draw* override and
+    // render as stock Win32.
+    return new WX_AUI_DOCK_ART( *this );
 }

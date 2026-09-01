@@ -24,6 +24,8 @@
  */
 
 #include <bitmaps.h>
+#include <widgets/ui_common.h>
+#include <kicad_ui_palette.h>
 #include <sch_edit_frame.h>
 #include <sch_commit.h>
 #include <tool/tool_manager.h>
@@ -84,7 +86,23 @@ HIERARCHY_PANE::HIERARCHY_PANE( SCH_EDIT_FRAME* aParent ) :
     images.push_back( KiBitmapBundle( BITMAPS::tree_sel ) );
     m_tree->SetImages( images );
 
-    sizer->Add( m_tree, 1, wxEXPAND, wxBORDER_NONE );
+    // The 4th argument of wxSizer::Add is a border *width*, not a style. This
+    // used to pass wxBORDER_NONE, which is 0, so the tree sat flush against all
+    // four edges of the pane -- an accident that read as deliberate density.
+    //
+    // No top border: the AUI caption already provides that separation.
+    sizer->Add( m_tree, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, FromDIP( 4 ) );
+
+    // MSW defaults to Explorer's ~19px indent, which is heavy for a pane this
+    // narrow. Note the tree's *colours* are not set here on purpose:
+    // KIPLATFORM::UI::ApplyDarkWindowTheme() runs on wxEVT_SHOW and recursively
+    // overwrites child background/foreground, so anything set at construction is
+    // discarded before the window is first painted.
+    m_tree->SetIndent( FromDIP( 14 ) );
+
+    // The only one of the three dock panels that did not use the shared docked
+    // pane font, which is why its type size disagreed with Properties.
+    SetFont( KIUI::GetDockedPaneFont( this ) );
 
     m_events_bound = false;
 

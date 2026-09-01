@@ -26,6 +26,7 @@
 #include <import_export.h>
 #include <pgm_base.h>
 #include <kiplatform/ui.h>
+#include <kicad_ui_palette.h>
 #include <properties/pg_cell_renderer.h>
 #include <properties/property.h>
 #include <properties/property_mgr.h>
@@ -88,7 +89,7 @@ PROPERTIES_PANEL::PROPERTIES_PANEL( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) 
     m_caption = new wxStaticText( this, wxID_ANY, _( "No objects selected" ) );
     m_caption->SetBackgroundColour( bg );
     m_caption->SetForegroundColour( fg );
-    mainSizer->Add( m_caption, 0, wxALL | wxEXPAND, 5 );
+    mainSizer->Add( m_caption, 0, wxALL | wxEXPAND, FromDIP( 8 ) );
 
     m_grid = new wxPropertyGrid( this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                                  wxPG_DEFAULT_STYLE | wxBORDER_NONE );
@@ -96,10 +97,24 @@ PROPERTIES_PANEL::PROPERTIES_PANEL( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) 
     m_grid->SetForegroundColour( fg );
     m_grid->SetCellBackgroundColour( bg );
     m_grid->SetCellTextColour( fg );
-    m_grid->SetCaptionBackgroundColour( wxColour( 24, 24, 24 ) );
-    m_grid->SetCaptionTextColour( wxColour( 245, 245, 245 ) );
+    // Category rows: same fill as the body. wxPropertyGrid's category geometry is
+    // stock and cannot be restyled, but matching the background removes the
+    // perceived bar and leaves bold text doing the grouping -- which is what a
+    // modern editor does anyway.
+    m_grid->SetCaptionBackgroundColour( KIUI::PALETTE::Surface() );
+    m_grid->SetCaptionTextColour( KIUI::PALETTE::TextPrimary() );
     m_grid->SetEmptySpaceColour( bg );
-    m_grid->SetLineColour( wxColour( 58, 58, 58 ) );
+    m_grid->SetLineColour( KIUI::PALETTE::Hairline() );
+
+    // Never set before, so both fell back to Win32 system colours: the margin
+    // rendered as a raised light-grey strip down the left edge of the panel, and
+    // selection used system blue.
+    m_grid->SetMarginColour( KIUI::PALETTE::Surface() );
+    m_grid->SetSelectionBackgroundColour( KIUI::PALETTE::Accent() );
+    m_grid->SetSelectionTextColour( KIUI::PALETTE::TextBright() );
+
+    // The only row-height control wxPropertyGrid offers; 2 is its maximum.
+    m_grid->SetVerticalSpacing( 2 );
     m_grid->SetUnspecifiedValueAppearance( wxPGCell( wxT( "<...>" ) ) );
     m_grid->SetExtraStyle( wxPG_EX_HELP_AS_TOOLTIPS );
 

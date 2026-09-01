@@ -72,6 +72,23 @@ public:
                       const wxRect& aRect, wxAuiPaneInfo& aPane ) override;
     void DrawBorder( wxDC& aDc, wxWindow* aWindow, const wxRect& aRect,
                      wxAuiPaneInfo& aPane ) override;
+
+    /**
+     * Draw the caption buttons (close, pin, maximise).
+     *
+     * wxAuiDefaultDockArt draws a hardcoded 3D raised/sunken box behind the
+     * glyph on hover and press. That box is the strongest remaining Win32 tell
+     * in the application, and it sits in the corner of every docked panel.
+     */
+    void DrawPaneButton( wxDC& aDc, wxWindow* aWindow, int aButton, int aButtonState,
+                         const wxRect& aRect, wxAuiPaneInfo& aPane ) override;
+
+    /**
+     * wxAuiDockArt::Clone() is pure virtual and wxAuiDefaultDockArt::Clone()
+     * returns a *base* copy, so without this a floated pane silently loses every
+     * override above and reverts to stock rendering while keeping our colours.
+     */
+    wxAuiDockArt* Clone() override;
 };
 
 

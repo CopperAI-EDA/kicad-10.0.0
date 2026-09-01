@@ -26,6 +26,7 @@
 #include <dwmapi.h>
 
 #include <kiplatform/ui.h>
+#include <kicad_ui_palette.h>
 
 #include <wx/bmpbuttn.h>
 #include <wx/button.h>
@@ -365,13 +366,16 @@ void KIPLATFORM::UI::ApplyDarkWindowTheme( wxWindow* aWindow )
 
     ApplyDarkFrameTheme( aWindow );
 
-    const wxColour dialogBg = GetDialogBGColour();
-    const wxColour panelBg( 30, 30, 30 );
-    const wxColour fieldBg( 18, 18, 18 );
-    const wxColour controlBg( 28, 28, 28 );
-    const wxColour border( 68, 68, 68 );
-    const wxColour fg( 245, 245, 245 );
-    const wxColour mutedFg( 176, 176, 176 );
+    // These come from the shared palette now. This function runs on wxEVT_SHOW
+    // and recursively overwrites every child's colours, so it -- not the widget
+    // constructors -- decides what the application actually looks like.
+    const wxColour dialogBg  = GetDialogBGColour();
+    const wxColour panelBg   = KIUI::PALETTE::Surface();
+    const wxColour fieldBg   = KIUI::PALETTE::Field();
+    const wxColour controlBg = KIUI::PALETTE::SurfacePressed();
+    const wxColour border    = KIUI::PALETTE::Border();
+    const wxColour fg        = KIUI::PALETTE::TextBright();
+    const wxColour mutedFg   = KIUI::PALETTE::TextMuted();
 
     wxColour bg = panelBg;
     wxColour text = aWindow->IsEnabled() ? fg : mutedFg;
