@@ -1005,16 +1005,29 @@ void WEBVIEW_PANEL::OnWebViewLoaded( wxWebViewEvent& aEvt )
                         "  "
                         "  window.wx_msg = {"
                         "    postMessage: function(handlerName, message) {"
+                        // wxWebView::AddScriptMessageHandler( name ) injects a
+                        // window.<name> object on every backend, and OnScriptMessage
+                        // routes on wxWebViewEvent::GetMessageHandler(). Posting to
+                        // that object is therefore the only form that reaches a
+                        // registered handler. Try it first.
+                        "      if (window[handlerName] && typeof "
+                        "window[handlerName].postMessage === 'function') {"
+                        "        window[handlerName].postMessage(message);"
+                        "        return true;"
+                        "      }"
                         "      if (window.webkit && window.webkit.messageHandlers && "
                         "window.webkit.messageHandlers[handlerName]) {"
                         "        window.webkit.messageHandlers[handlerName].postMessage(message);"
-                        "      } else if (window.chrome && window.chrome.webview) {"
-                        "        window.chrome.webview.postMessage(JSON.stringify({ handler: "
-                        "handlerName, "
-                        "message: message }));"
-                        "      } else {"
-                        "        console.warn('[wx_msg] No native bridge available');"
+                        "        return true;"
                         "      }"
+                        // Deliberately NOT falling back to
+                        // window.chrome.webview.postMessage: that is WebView2's
+                        // generic channel, so the message arrives with no handler
+                        // name and OnScriptMessage drops it. It looked plausible and
+                        // silently did nothing on Windows, which is why "Open
+                        // sign-in in browser" never opened a browser.
+                        "      console.warn('[wx_msg] no registered handler: ' + handlerName);"
+                        "      return false;"
                         "    }"
                         "  };"
                         "  "
